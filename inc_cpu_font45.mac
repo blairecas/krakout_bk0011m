@@ -1,0 +1,72 @@
+; 4x5 numbers (aligned by 8 bytes)
+SprNumbers45:
+	; 0
+	.byte	^B00111111
+	.byte	^B00110011
+	.byte	^B00110011
+	.byte	^B00110011
+	.byte	^B00111111
+	.byte	0, 0, 0
+	; 1
+	.byte	^B00001100
+	.byte	^B00001100
+	.byte	^B00001100
+	.byte	^B00001100
+	.byte	^B00001100
+	.byte	0, 0, 0
+	; 2
+	.byte	^B00111111
+	.byte	^B00110000
+	.byte	^B00111111
+	.byte	^B00000011
+	.byte	^B00111111
+	.byte	0, 0, 0
+	; 3
+	.byte	^B00111111
+	.byte	^B00110000
+	.byte	^B00111100
+	.byte	^B00110000
+	.byte	^B00111111
+	.byte	0, 0, 0
+	; 4
+	.byte	^B00110011
+	.byte	^B00110011
+	.byte	^B00111111
+	.byte	^B00110000
+	.byte	^B00110000
+	.byte	0, 0, 0
+	; 5
+	.byte	^B00111111
+	.byte	^B00000011
+	.byte	^B00111111
+	.byte	^B00110000
+	.byte	^B00111111
+	.byte	0, 0, 0
+	; 6
+	.byte	^B00111111
+	.byte	^B00000011
+	.byte	^B00111111
+	.byte	^B00110011
+	.byte	^B00111111
+	.byte	0, 0, 0
+	; 7
+	.byte	^B00111111
+	.byte	^B00110000
+	.byte	^B00110000
+	.byte	^B00110000
+	.byte	^B00110000
+	.byte	0, 0, 0
+	; 8
+	.byte	^B00111111
+	.byte	^B00110011
+	.byte	^B00111111
+	.byte	^B00110011
+	.byte	^B00111111
+	.byte	0, 0, 0
+	; 9
+	.byte	^B00111111
+	.byte	^B00110011
+	.byte	^B00111111
+	.byte	^B00110000
+	.byte	^B00111111
+	.byte	0, 0, 0
