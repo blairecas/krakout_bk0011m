@@ -166,7 +166,7 @@ MainPrepare:
 MainPreLevel:
 	call	ClearScreen			; clear anything from both screens
 	call	LoadLevel			; load level
-	call	ClrNpc				; clear npc's 
+	call	ClearNpc			; clear npc's 
 	call	DefCoords			; default ball and bat coords
 	clr	KeyCurrent			; clear keys just in case
 	call	DrawBackground			; draw some background things (score, level, lives)
@@ -240,7 +240,7 @@ MainLevelEnd:
 ; 06 - live lost
 MainLiveLost:
 	call	ClearScreen
-	call	ClrNpc
+	call	ClearNpc
 	call	DefCoords
 	clr	KeyCurrent
 	call	DrawBackground
@@ -2303,15 +2303,15 @@ ANGONB:	mov	BallX, R1
 
 
 ; movement summary
-MOVTOB:	call	Movt01		; move by angle
-	beq	99$		; wasn't moved in pixels
-	call	TstAng		; update angle direction
-	call	ClrNor		; clr normal
-	call	Movt02		; add walls normal
-	call	AngCor		; correct angle (if have normal)
-	call	ClrNor		; clr normal
-	call	Movt03		; add field normal
-	call	AngCor		; correct angle (if have normal)
+MOVTOB:	call	Movt01				; move by angle
+	beq	99$				; wasn't moved in pixels
+	call	TstAng				; update angle direction
+	call	ClrNor				; clr normal
+	call	Movt02				; add walls normal
+	call	AngCor				; correct angle (if have normal)
+	call	ClrNor				; clr normal
+	call	Movt03				; add field normal
+	call	AngCor				; correct angle (if have normal)
 99$:	return
 
 
@@ -2320,21 +2320,11 @@ MOVTOB:	call	Movt01		; move by angle
 ; //////////////////////////////////////////////////////////////////////////////
 	
 ; clear NPC objects
-CLRNPC:	mov	#NPCTBL, NPCADR
-1$:	mov	NPCADR, R0
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	clr	(R0)+
-	add	#20., NPCADR
-	cmp	NPCADR, #NPCTBE
-	blo	1$ 
+ClearNpc:
+	mov	#NpcTbl, R5
+10$:	clr	(R5)+
+	cmp	R5, #NpcTbe
+	blo	10$
 	return
 
 
@@ -2371,7 +2361,7 @@ DrawNpc:
 	return
 
 
-NPCSP0:	.word	345.		; spawn timer
+NPCSP0:	.word	345.			; spawn timer
 
 ; npc spawn procedure
 NPCSPA:	add	#6, NPSPAD		; cycle spawn points
@@ -3063,9 +3053,9 @@ NPSPAT:	.blkw	44				; type, x-block, y-block
 
 ; NPC table (10 max)
 ; NPC object: type, state, substate, spr id, x, y, timer1, timer2, data1, data2
-NPCADR:	.word	0
-NPCTBL:	.blkw	100				; 10 objects by 10 words
-NPCTBE:
+NpcAdr:		.word	0
+NpcTbl:		.blkw	100				; 10 objects by 10 words
+NpcTbe:
 
 ; kub effects tables
 KeffTblLight:	.byte	38., 38., 38., 38., 39., 39., 39., 39., -1, -1, 0
@@ -3438,7 +3428,7 @@ StrScroll:	.asciz	"KRAKOUT FOR BK0011M - TEST SCROLLING - TEST SCROLLING        
 @include inc_cpu_font.mac
 @include inc_cpu_font45.mac
 
-	.even
+		.even
 ProgramEnd:
 
 ; empty blocks (!) must check them for 100000 limit
