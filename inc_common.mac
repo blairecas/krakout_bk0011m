@@ -19,9 +19,6 @@ C_RAM_5 = ^B001
 C_RAM_6 = ^B111
 C_RAM_7 = ^B101
 
-C_PALETTE_0 = 0
-C_PALETTE_1 = 15*256.
-
 ; drawing
 C_VADDR		= 100000
 C_SCRWID	= 64.
@@ -69,7 +66,13 @@ C_NPC_BEEHIVE	= 2.
 C_NPC_BEE	= 3.
 C_NPC_ROMB	= 4.
 C_NPC_BOWL	= 5.
+C_NPC_BAT	= 6.
 
+; power-ups #
+C_PWR_E		= 15.
+C_PWR_G		= 14.
+C_PWR_B		= 13.
+C_PWR_S		= 12.
 
 ; menu
 C_SCROLL_Y	= 225.

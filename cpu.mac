@@ -316,8 +316,7 @@ SwitchBuffers:
 	mov	R0, @#177716
 	mov	#^B10000000, R0
 	bis	Palette, R0
-	swab	R0
-	mov	R0, @#177662
+	movb	R0, @#177663
 	clr	@ChangedCur				; clear last+1 'changed' addr
 	mov	#ChangedSpr0, ChangedCur		; switch it to next
 	mov	#ChangedBat0, ChangedBat		; switch bat data to next
@@ -327,8 +326,7 @@ SwitchBuffers:
 	mov	R0, CurDrawBanks
 	mov	R0, @#177716
 	mov	Palette, R0
-	swab	R0
-	mov	R0, @#177662
+	movb	R0, @#177663
 	clr	@ChangedCur
 	mov	#ChangedSpr1, ChangedCur
 	mov	#ChangedBat1, ChangedBat
@@ -380,6 +378,7 @@ ClearScreen:
 	call	DuplicateScreen
 	return
 
+
 ; print octal word (4x5 font), R0 - word, R1-vram addr
 PrintOctalWord:
 	mov	R1, R5
@@ -414,6 +413,7 @@ PrintOctalWord:
 	sub	#C_SCRWID*4-1, R5
 	sob	R3, 20$
 	return	 
+
 
 ; print string
 ; R0 - text addr
@@ -507,13 +507,12 @@ PreshiftAll:
 	sob	R3, .-2
 	; set vars
 	clr	-(SP)				; 8.(SP) current sprite ID
-	mov	#2, -(SP)			; 6(SP) current bank # - starting from RAM bank 2
+	mov	#C_RAM_2, -(SP)			; 6(SP) current bank ID - starting from RAM bank 2
 	mov	#SpritesTable, -(SP)		; 4(SP) table start addr
 	mov	#SpritesTableEnd, -(SP)		; 2(SP) table end addr
 	mov	#100000, -(SP)			; 0(SP) offsets table
 10$:	; set spr dest bank to 100000
-	mov	6(SP), R0			; bank #
-	movb	RamBankIds(R0), R0		; to bank ID
+	mov	6(SP), R0			; bank ID
 	swab	R0				; to upper byte
 	bis	#C_RAM_BANKS11, R0
 	mov	R0, @#177716
@@ -526,8 +525,7 @@ PreshiftAll:
 	mov	#C_SPR_MAX*2+100000, R5
 50$:	; cycle sprites
 	; update sprite bank table
-	mov	6(SP), R0			; current bank #
-	movb	RamBankIds(R0), R0		; current bank ID
+	mov	6(SP), R0			; current bank ID
 	swab	R0				; make ID for 40000
 	asl	R0
 	asl	R0
@@ -554,8 +552,8 @@ PreshiftAll:
 	cmp	R5, #140000-1000.		; just in case use 1000. though preshifted is 768. bytes
 	blo	50$
 	; increase bank #, check and cycle
-	inc	6(SP)				; increase bank #
-	cmp	6(SP), #4			; max bank is #4
+	inc	6(SP)				; increase bank ID
+	cmp	6(SP), #C_RAM_7			; max bank ID?
 	blos	10$
 90$:	; restore SP, default RAM banks and return
 	add	#10., SP
@@ -1181,6 +1179,8 @@ LoadLevel:
 	mov	LevTbl(R0), R0			; source packed addr
 	mov	#LevelC, R1
 	call	Unpack
+	; adjust unpacked level to field and draw borders
+	call	ULevelAdj
 	; process levelC
 	clr	R5				; k-addr
 	mov	#0, R2				; y-block
@@ -1220,10 +1220,10 @@ LoadLevel:
 	cmp	R2, #12.			; cycle by y
 	blo	30$	
 	; if we have Cheat
-	clr	RightWall
+	clrb	RightWall
 	tst	UseCheat
 	beq	80$
-	com	RightWall
+	comb	RightWall
 	call	RWallCreate
 80$:	; set initial npc spawn addr
 	mov	#NPSPAT, NPSPAD
@@ -1233,6 +1233,36 @@ LoadLevel:
 	mov	#KeffDataEnd-KeffCount/2, R3
 	clr	(R0)+
 	sob	R3, .-2
+	return
+
+
+; adjust unpacked 14x10 level field to 14x10 at center and draw borders
+ULevelAdj:
+	mov	#14.*10.+LevelC, R0		; end+1 of unpacked source
+	mov	#16.*12.+LevelC-17., R1		; end+1 of unpacked dest
+	mov	#10., R3
+10$:	mov	#14., R2
+	movb	-(R0), -(R1)
+	sob	R2, .-2
+	dec	R1
+	dec	R1
+	sob	R3, 10$
+	; left/right borders
+	mov	#LevWLeft, R0
+	mov	#16.+LevelC, R1
+	mov	#10., R3
+30$:	movb	(R0)+, (R1)
+	clrb	15.(R1)
+	add	#16., R1
+	sob	R3, 30$
+	; top/bottom borders
+	mov	#LevWUpper, R0
+	mov	#LevWLower, R1
+	mov	#LevelC, R2
+	mov	#16., R3
+40$:	movb	(R0)+, (R2)+
+	movb	(R1)+, 16.*11.-1(R2)
+	sob	R3, 40$
 	return
 
 
@@ -1272,8 +1302,11 @@ DefCoords:
 	mov	#C_BALLVEL_MIN, BallVel
 	mov	#12., BallBat			; position in a bat
 	call	BalGlu
+	;movb	#1, BallSuper
+	clrb	BallSuper
+	clrb	BallSuperCnt
 	; other
-	clr	LostCounter			; we are alive
+	clrb	LostCounter			; we are alive
 	return
 
 
@@ -1340,18 +1373,18 @@ PWRTST:	movb	LevelC(R5), R0
 HITPWR:	movb	LevelC(R5), R0
 	bic	#^B1111111111110000, R0
 	; was it E p-up?
-	cmp	R0, #15.
+	cmp	R0, #C_PWR_E
 	bne	10$
 	mov	#4., BatMode			; extend mode
 	return
 10$:	; was it G p-up?
-	cmp	R0, #14.
+	cmp	R0, #C_PWR_G
 	bne	20$
 	mov	#5., BatMode			; wait for glued mode
 	return
 20$:	; was it bomb?
-	cmp	R0, #13.
-	bne	99$
+	cmp	R0, #C_PWR_B
+	bne	30$
 	mov	#KeffTblDisso, R1		; dissolve seq addr
 	sub	#17., R5
 	clrb	LevelC(R5)
@@ -1379,47 +1412,63 @@ HITPWR:	movb	LevelC(R5), R0
 	clrb	LevelC(R5)
 	call	KeffAdd
 	sub	#17., R5			; rewind R5 to what is was before
+	return
+30$:	; was it super-ball?
+	cmp	R0, #C_PWR_S
+	bne	99$
+	incb	BallSuper
 99$:	return
 	
 	
-; process field
-FIELDO:	tst	LostCounter			; already lost
-	bne	99$
-	tst	NORKUB				; nothing hitted
+; process kub hit in field
+; NorKub - k-addr of hitted kub
+FieldHit:
+	tst	NorKub				; nothing hitted
 	beq	99$
-	mov	NORKUB, R5			; k-addr of normal
+	tstb	LostCounter			; already lost
+	bne	99$
+	mov	NorKub, R5			; k-addr of hitted kub
+	tstb	BallSuper			; super-ball?
+	bne	30$				; always break kubs with super-ball
 	movb	LevelC(R5), R0
 	bic	#^B1111111100111111, R0		; break power
-	cmp	R0, #^B11000000			; unbreakable
-	beq	20$
-	; hit something
+	cmp	R0, #^B11000000			; unbreakable?
+	bne	20$
+	; hit unbreakable
+	incb	BallSuperCnt			; increase 'hit unbreakable' counter
+	cmpb	BallSuperCnt, #20.
+	blo	10$
+	incb	BallSuper			; set ball to super mode
+10$:	; add highlight effect
+	mov	#5, SoundNum			; sound 5 - 'ding'
+	mov	#KeffTblLight, R1		; h-light seq addr
+	br	90$
+20$:	; hit breakable
+	clrb	BallSuperCnt			; reset super-ball counter
 	sub	#^B01000000,R0			; decrease power
 	beq	30$				; block is broken?
 	movb	LevelC(R5), R1			; store back power
 	bic	#^B1111111111000000, R1
 	bis	R0, R1
 	movb	R1, LevelC(R5)
-20$:	; add 'highlight' effect
-	mov	#5, SoundNum			; sound 5 - 'ding'
-	mov	#KeffTblLight, R1		; h-light seq addr
-	call	KeffAdd
-	return
-30$:	; test for hidden power-up
+	br	10$				; and go to highlight
+30$:	; broke something
+	; test for hidden power-up
 	call	PWRTST
 	bcc	32$
 	; add 'power up' effect
 	mov	#4, SoundNum			; sound 4 - 'ta da da'
 	mov	#KeffTblPower, R1		; power-up emerge seq addr
-	call	KeffAdd
-	return
+	br	90$
 32$:	; add 'dissolve' effect
-	mov	#2, SoundNum			; sound 2 - 'tick'
-	inc	SCORE
+	inc	Score
 	incb	ScoreChanged
 	call	HITPWR				; do we broke power up?
 	clrb	LevelC(R5)			; remove block
+	mov	#2, SoundNum			; sound 2 - 'tick'
 	mov	#KeffTblDisso, R1		; dissolve seq addr
-	call	KeffAdd
+	; add effect from R1 on R5 (k-addr)
+90$:	call	KeffAdd
 99$:	return
 
 
@@ -1499,10 +1548,10 @@ TestLevelEnd:
 ; //////////////////////////////////////////////////////////////////////////////
 
 ; lost mode processing
-LOSTDO:	tst	LostCounter
+LOSTDO:	tstb	LostCounter
 	beq	99$
-	inc	LostCounter
-	cmp	LostCounter, #80.		; will wait some after ball is lost
+	incb	LostCounter
+	cmpb	LostCounter, #80.		; will wait some after ball is lost
 	blo	99$
 	mov	#C_MODE_LOST, CurrentMode	; live lost
 	dec	Lives
@@ -1524,7 +1573,7 @@ BallBat:	.word	12.			; relative y with bat
 
 ; draw ball
 DrawBall:	
-	tst	LostCounter
+	tstb	LostCounter
 	bne	99$
 	mov	BallX, R1			; they are float (!)
 	mov	BallY, R2
@@ -1543,7 +1592,7 @@ BallCheckOut:
 	cmp	R0, #240.*256.			; (float) 240.0 
 	blo	90$
 	mov	#1., BatMode			; bat mode = 1 - delete bat
-	inc	LostCounter			; lost countdown
+	incb	LostCounter			; lost countdown
 	sec
 	return
 90$:	clc
@@ -1580,14 +1629,14 @@ BALMOV:	mov	BallAngle, Angle0
 
 
 ; process ball
-BALLDO:	tst	LostCounter
+BALLDO:	tstb	LostCounter
 	bne	99$
 	call	BallCheckOut
 	bcs	20$
 	call	BALGLU
 	bcs	20$
 	call	BALMOV				; move ball
-	call	FIELDO				; process field
+	call	FieldHit			; process field
 20$:	; bat deflection
 	mov	BallAngle, Angle0
 	call	ClrNor
@@ -1599,7 +1648,7 @@ BALLDO:	tst	LostCounter
 
 ; ball vs npc check, NPCADR - current npc
 BallVsNpc:	
-	tst	LostCounter			; already lost ball?
+	tstb	LostCounter			; already lost ball?
 	bne	90$
 	mov	NPCADR, R5			; R5 = current NPC data addr
 	mov	#10.*256., R0			; 10. (float)
@@ -2089,7 +2138,7 @@ Movt01:	mov	Angle0, R0
 ; movement 02 - add wall's normals
 ; input: R1 - X, R2 - Y (in pix) (must be already set from Movt01)
 ; outpu: set Normal if collided
-Movt02:	tst	RightWall			; do we have right wall
+Movt02:	tstb	RightWall			; do we have right wall
 	beq	20$
 	tstb	GoingRight			; testing right wall
 	beq	20$
@@ -2592,9 +2641,9 @@ Npd004:	mov	NpcAdr, R5
 
 
 ; 'bowling' npc
-NPD005:	mov	NPCADR, R5
+NPD005:	mov	NpcAdr, R5
 	mov	#Spt005, R0
-	call	N4FRAM
+	call	N4Frame
 	; timer 2 - change angle to the bat
 	inc	16(R5)				; timer 2
 	cmp	16(R5), #20.
@@ -2622,9 +2671,9 @@ NPD005:	mov	NPCADR, R5
 
 
 ; 'npc bat'
-NPD006:	mov	NPCADR, R5
+NPD006:	mov	NpcAdr, R5
 	mov	#Spt007, R0
-	call	N4FRAM
+	call	N4Frame
 	; timer 2
 	inc	16(R5)				; timer 2
 	cmp	16(R5), #200.
@@ -2644,14 +2693,15 @@ NPD006:	mov	NPCADR, R5
 	mov	ObjectX, 10(R5)
 	mov	ObjectY, 12(R5)
 	mov	Angle0, 20(R5)
-	call	FIELDO
-	mov	NPCADR, R5			; r5 was broken in fieldo
+	call	FieldHit
+	mov	NpcAdr, R5			; r5 was broken in fieldhit
 	return 
 
 
 ; set 4-frame sprite id
 ; R5 - npcadr, R0 - 4-spr tbl
-N4FRAM:	bit	#^B11, FrameCount
+N4Frame:
+	bit	#^B11, FrameCount
 	bne	99$
 	mov	4(R5), R2			; substate
 	bic	#^B1111111111111100, R2
@@ -2761,27 +2811,23 @@ Unpack:
 	clr	R2
 	movb	#200, R3
 	sxt	R5
-DZX0_LITERALS:
-	call	DZX0_ELIAS
+10$:	call	50$
 	movb	(R0)+, (R1)+
 	sob	R2, .-2
 	aslb	R3
-	bcs	DZX0_NEW_OFFSET
-	call	DZX0_ELIAS
-DZX0_COPY:
-	mov	R1, R4
+	bcs	30$
+	call	50$
+20$:	mov	R1, R4
 	add	R5, R4
 	movb	(R4)+, (R1)+
 	sob	R2, .-2
 	aslb	R3
-	bcc	DZX0_LITERALS
-DZX0_NEW_OFFSET:
-	mov	#-2, R2
-	call	DZX0_ELIAS_LOOP
+	bcc	10$
+30$:	mov	#-2, R2
+	call	60$
 	incb	R2
 	bne	.+4
-DZX0_EXIT:
-	return
+40$:	return
 	swab	R2
 	mov	R2, R5
 	clrb	R5
@@ -2789,22 +2835,18 @@ DZX0_EXIT:
 	asr	R5
 	mov	#1, R2
 	bcs	.+6
-	call	DZX0_ELIAS_BACKTRACK
+	call	80$
 	inc	R2
-	br	DZX0_COPY
-DZX0_ELIAS:
-	incb	R2
-DZX0_ELIAS_LOOP:
-	aslb	R3
-	bne	DZX0_ELIAS_SKIP
+	br	20$
+50$:	incb	R2
+60$:	aslb	R3
+	bne	70$
 	movb	(R0)+, R3
 	rolb	R3
-DZX0_ELIAS_SKIP:
-	bcs	DZX0_EXIT
-DZX0_ELIAS_BACKTRACK:
-	aslb	R3
+70$:	bcs	40$
+80$:	aslb	R3
 	rol	R2
-	br	DZX0_ELIAS_LOOP
+	br	60$
 
 
 ; create K-addrs to vaddrs table
@@ -3016,11 +3058,14 @@ Level:		.word	0
 Lives:		.word	20
 Score:		.word	0
 UseCheat:	.word	0
-RightWall:	.word	0			; right wall presence
-LostCounter:	.word	0			; are we dying? (counter 1..150 or so)
 
+RightWall:	.byte	0			; right wall presence
+LostCounter:	.byte	0			; are we dying? (counter 1..150 or so)
 ScoreChanged:	.byte	0			; 1 - need redraw score
 LivesChanged:	.byte	0			; 1 - need redraw lives
+
+BallSuper:	.byte	0
+BallSuperCnt:	.byte	0
 
 TempX:		.word	0
 TempY:		.word	0
@@ -3067,252 +3112,249 @@ KeffTblDisso:	.byte	30., 30., 31., 31., 32., 32., 33., 33., 34., 34., 35., 35., 
 LEVTBL:	.word	LEVF00, LEVF01, LEVF02, LEVF03, LEVF04, LEVF05, LEVF06, LEVF07, LEVF08, LEVF09
 	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14
 
+; upper/lower/left bytes for level walls
+LevWUpper:	.byte	018, 019, 020, 019, 021, 020, 019, 022, 022, 020, 019, 021, 020, 019, 020, 023
+LevWLower:	.byte	028, 019, 020, 019, 021, 020, 019, 022, 022, 020, 019, 021, 020, 019, 020, 029
+LevWLeft:	.byte	024, 025, 026, 027, 024, 024, 025, 026, 027, 024
+
+	; npc data: (+128)
+	; 1 face - 129
+	; 2 hive - 130
+	; 3 bee  - 131
+	; 4 romb - 132
+	; 5 bowl - 133
+	; 6 bat  - 134
+
 	; pwr-ups data: (+64)
-	; E - 15 + 64 = 79
-	; G - 14 + 64 = 78
-	; B - 13 + 64 = 77
+	; E - 17 + 64 = 81
+	; G - 16 + 64 = 80
+	; B - 15 + 64 = 79
+	; S - 14 + 64 = 78
 
 	; level data (packed with zx0)
 LEVF00:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0, 003, 002, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 129, 003, 002, 001,  79, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0, 003, 002, 001, 002, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0, 003, 002, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0, 003, 002, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	129, 003, 002, 001,  81, 003,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0, 003, 002, 001, 002, 003,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0, 003, 002, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0, 003,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF01:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,  04,  02,  04,   0,   0,   0,  04,  79,  04,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,  03,   0,   0,  06,   0,   0,  03,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,  06,   0,  06,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 129,   0,  06,   0,  04,   0,  06,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,  06,   0,  04,   0,  06,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,  06,   0,  06,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,  03,   0,   0,  06,   0,   0,  03,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,  04,  78,  04,   0,   0,   0,  04,  02,  04,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0
+	.byte	 04,  02,  04,   0,   0,   0,  04,  81,  04,   0,   0,   0,   0,   0
+	.byte	  0,  03,   0,   0,  06,   0,   0,  03,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,  06,   0,  06,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	129,   0,  06,   0,  04,   0,  06,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  06,   0,  04,   0,  06,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,  06,   0,  06,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,  03,   0,   0,  06,   0,   0,  03,   0,   0,   0,   0,   0,   0
+	.byte	 04,  80,  04,   0,   0,   0,  04,  02,  04,   0,   0,   0,   0,   0
+	.byte	  0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0
 @packend
 	
 LEVF02:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,  01,   0,  06,   0,  01,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,  01,   0,  03,   0,  03,   0,  01,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,  01,   0,  03,   0,   0,   0,  03,   0,  01,   0,   0,   0,   0,   0,   0
-	.byte	022,  06,  02, 130,   0,  07,   0,   0,  78,  06,   0,   0,   0,   0,   0,   0
-	.byte	022,  06,  78, 130,   0,  07,   0,   0,  02,  06,   0,   0,   0,   0,   0,   0
-	.byte	023,  01,   0,  03,   0,   0,   0,  03,   0,  01,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,  01,   0,  03,   0,  03,   0,  01,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,  01,   0,  06,   0,  01,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  01,   0,  06,   0,  01,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,  01,   0,  03,   0,  03,   0,  01,   0,   0,   0,   0,   0,   0
+	.byte	 01,   0,  03,   0,   0,   0,  03,   0,  01,   0,   0,   0,   0,   0
+	.byte	 06,  02, 130,   0,  07,   0,   0,  80,  06,   0,   0,   0,   0,   0
+	.byte	 06,  80, 130,   0,  07,   0,   0,  02,  06,   0,   0,   0,   0,   0
+	.byte	 01,   0,  03,   0,   0,   0,  03,   0,  01,   0,   0,   0,   0,   0
+	.byte	  0,  01,   0,  03,   0,  03,   0,  01,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  01,   0,  06,   0,  01,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF03:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023, 131,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024, 131,   8,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025, 131,   5,   8,   5,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 131,   8,   5,   7,   7,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 131,   5,   8,   7,   7,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023, 131,   8,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024, 131,   5,   8,   5,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025, 131,   0,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   8,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   5,   8,   5,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   8,   5,   7,   7,   8,   5,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   5,   8,   7,   7,   5,   8,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   8,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   5,   8,   5,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0
+	.byte	131,   0,   5,   8,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF04:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   3,   7,   0,   2,   7,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   3,   7,   2,   2,   7,   2,   3,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   3,   7,  79,   2,   2,   2,   3,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   3,   2,  78,   2,   3,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   3,   2,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   7,   0,   2,   7,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   3,   7,   2,   2,   7,   2,   3,   0,   0,   0,   0,   0,   0
+	.byte	  0,   3,   7,  81,   2,   2,   2,   3,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   2,  80,   2,   3,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   3,   2,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF05:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   2,   0,   0,  79,   0,   0,   2,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   6, 132,   0,   6, 132,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,  79,   0,   0,   2,   0,   0,  79,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   2,   0,   0,  81,   0,   0,   2,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6, 132,   0,   6, 132,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   0,   0,   6,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   0,  81,   0,   0,   2,   0,   0,  81,   0,   0,   0,   0,   0
 @packend
 
 LEVF06:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0,   2,   2, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   2,   7,   7,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,  78,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   9,   9,   9,   9,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   9,   0,   9,   9,   0,   9,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   6,   0,   9,   9,   0,   6,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   9,   9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   2,  78,   2, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   2,   0,   0,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   9,   9, 130,   0,   9,   9,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0,   2,   2, 129,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   2,   7,   7,   2,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,  80,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   9,   9,   9,   9,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   9,   0,   9,   9,   0,   9,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   0,   9,   9,   0,   6,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   9,   9,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   2,  80,   2, 129,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   2,   0,   0,   2,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   9,   9, 130,   0,   9,   9,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF07:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0, 132,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   5,   5,   5,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	025, 133,   8,  79,   8,   0,   0,   6,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   5,   2,   5,   0,   0,   7,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   8,   2,   8,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023, 133,   5,  79,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0, 132,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0, 132,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   5,   5,   5,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	133,   8,  81,   8,   0,   0,   6,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   5,   2,   5,   0,   0,   7,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   8,   2,   8,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
+	.byte	133,   5,  81,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   8,   5,   8,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   5,   8,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0, 132,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF08:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   3,   4,   4,   4,   0,   4,   4,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   3,   3,   3,   3,   3,   4,   4,   4,   0,   0,   0,   0,   0,   0
-	.byte	022,   1,  77,   3,  77,   3,  77,   3,  77,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   3,   3,   3,   3,   3,   4,   4,   4,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   3,   4,   4,   4,   0,   4,   4,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   4,   4,   4,   0,   4,   4,   0,   0,   0,   0,   0
+	.byte	  0,   3,   3,   3,   3,   3,   4,   4,   4,   0,   0,   0,   0,   0
+	.byte	  1,  79,   3,  79,   3,  79,   3,  79,   0,   0,   0,   0,   0,   0
+	.byte	  0,   3,   3,   3,   3,   3,   4,   4,   4,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   4,   4,   4,   0,   4,   4,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF09:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   3,   0, 129,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   3,  77,   3,   0,   3,  77,   3,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   3,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 130,   0,   0,   3,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   3,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   3,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   3,  77,   3,   0,   3,  77,   3,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   3,   0, 129,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   3,   0, 129,   0,   3,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   3,  79,   3,   0,   3,  79,   3,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	130,   0,   0,   3,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   3,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   0,   0,   0,   3,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   3,  79,   3,   0,   3,  79,   3,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   3,   0, 129,   0,   3,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF10:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023, 134,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,  77,   0,   0,   0,   4,   4,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   6,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,  77,   0,   0,   0,   0,   4,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,  77,   0,   0,   0,   0,   4,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   6,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,  77,   0,   0,   0,   4,   4,   0,   0,   0,   0,   0,   0,   0
-	.byte	025, 134,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	134,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  79,   0,   0,   0,   4,   4,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  79,   0,   0,   0,   0,   4,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  79,   0,   0,   0,   0,   4,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,  79,   0,   0,   0,   4,   4,   0,   0,   0,   0,   0,   0
+	.byte	134,   6,   6,   6,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF11:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   6,   0,   0,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   6,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   6,   9,   0,   9,   6,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   4,   9,   6, 134,   6,   9,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   4,   9,   0,   0,  79,   0,   0,   9,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   4,   9,   0,   0,  78,   0,   0,   9,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   4,   9,   6, 134,   6,   9,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   6,   9,   0,   9,   6,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   6,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   6,   0,   0,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  6,   0,   0,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0
+	.byte	  0,   6,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   9,   0,   9,   6,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   4,   9,   6, 134,   6,   9,   0,   0,   0,   0,   0,   0,   0
+	.byte	  4,   9,   0,   0,  81,   0,   0,   9,   0,   0,   0,   0,   0,   0
+	.byte	  4,   9,   0,   0,  80,   0,   0,   9,   0,   0,   0,   0,   0,   0
+	.byte	  0,   4,   9,   6, 134,   6,   9,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   6,   9,   0,   9,   6,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0,   0
+	.byte	  6,   0,   0,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0
 @packend
 
 LEVF12:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022, 129,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   7,   0,   0,   6, 134,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   7,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   6, 134,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   6,   0,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 129,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	129,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   7,   0,   0,   6, 134,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   7,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6, 134,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   0,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
+	.byte	129,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF13:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   6,   6,   6,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   6,  79,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   6,  79,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   6,   6,   6,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0,   0
-	.byte	022, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   6,   6,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,  81,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,  81,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   6,   6,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 LEVF14:
 @packstart10
-	.byte	016, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 021
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	023,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	024,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	025,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	022,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	026, 017, 018, 017, 019, 018, 017, 020, 020, 018, 017, 019, 018, 017, 018, 027
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   1,   7,   0,   0,   0,   0,   0
 @packend
 
+LEVF15:
+@packstart10
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+@packend
 	
 ; blocks power (3 - unbreakable)
 BGOPWR:		.byte	0, 1, 1, 1, 1, 1, 2, 3, 1, 1	; 00..09
