@@ -1,5 +1,5 @@
 SpritesTable:
-	.word	Sprites000, Sprites001, Sprites002, Sprites003, Sprites004, 0, 0, 0, 0, 0
+	.word	Sprites000, Sprites001, Sprites002, Sprites003, Sprites004, Sprites005, 0, 0, 0, 0
 	.word	Sprites010, Sprites011, Sprites012, Sprites013, Sprites014, Sprites015, 0, 0, 0, 0
 	.word	Sprites020, Sprites021, Sprites022, Sprites023, 0, 0, 0, 0, 0, 0
 	.word	Sprites030, Sprites031, Sprites032, Sprites033, Sprites034, Sprites035, Sprites036, Sprites037, Sprites038, Sprites039
@@ -15,24 +15,30 @@ Sprites000:
 	.word	147400, 374, 170000, 17
 
 Sprites001:
+	.byte	3, 12
+	.word	170000, 17, 7400, 360, 171400, 317, 176300, 1477
+	.word	176300, 1477, 176300, 1477, 176300, 1477, 171400, 317
+	.word	7400, 360, 170000, 17
+
+Sprites002:
 	.byte	5, 5
 	.word	140000, 0, 170000, 3, 176000, 17, 170000, 3
 	.word	140000, 0
 
-Sprites002:
+Sprites003:
 	.byte	2, 13
 	.word	140000, 0, 140000, 0, 170000, 3, 170000, 3
 	.word	177400, 77, 177760, 1777, 177400, 77, 170000, 3
 	.word	170000, 3, 140000, 0, 140000, 0
 
-Sprites003:
+Sprites004:
 	.byte	1, 15
 	.word	140000, 0, 140000, 0, 170000, 3, 171400, 63
 	.word	176000, 17, 177700, 377, 177774, 7777, 177700, 377
 	.word	176000, 17, 171400, 63, 170000, 3, 140000, 0
 	.word	140000, 0
 
-Sprites004:
+Sprites005:
 	.byte	1, 16
 	.word	140000, 0, 140060, 0, 170300, 303, 171400, 63
 	.word	176000, 17, 177700, 377, 177774, 37777, 177700, 377
