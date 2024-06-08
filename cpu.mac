@@ -183,20 +183,20 @@ MainPreLevel:
 MainLevel:
 	call	SwitchBuffers			; switch them asap after vsync
 
-	;
-	; debug info
-	;
-	bit	#^B11111, FrameCount		; once in 32. frames
-	bne	1$
-	mov	WaitVsync+2, R0
-	clr	WaitVsync+2
-	asr	R0				; /=32.
-	asr	R0
-	asr	R0
-	asr	R0
-	asr	R0
-	mov	#C_SCRWID*4.+1.+C_VADDR, R1
-	call	PrintOctalWord
+;	;
+;	; debug info
+;	;
+;	bit	#^B11111, FrameCount		; once in 32. frames
+;	bne	1$
+;	mov	WaitVsync+2, R0
+;	clr	WaitVsync+2
+;	asr	R0				; /=32.
+;	asr	R0
+;	asr	R0
+;	asr	R0
+;	asr	R0
+;	mov	#C_SCRWID*4.+1.+C_VADDR, R1
+;	call	PrintOctalWord
 1$:	; DEBUG: key 1
 	cmp	KeyCurrent, #C_KEY_1
 	bne	2$
