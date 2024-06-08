@@ -164,7 +164,8 @@ MainPrepare:
 
 ; 03 - Level prepare
 MainPreLevel:
-	call	ClearScreen			; clear anything from both screens
+	call	ClearScreen
+	call	LevelIntro			; introduction of level (if any)
 	call	LoadLevel			; load level
 	call	ClearNpc			; clear npc's 
 	call	DefCoords			; default ball and bat coords
@@ -1157,6 +1158,36 @@ MusicMute:
 ; // Logic
 ; //////////////////////////////////////////////////////////////////////////////
 
+; addr of level to R0
+GetLevelAddr:
+	mov	Level, R0
+	asl	R0
+	mov	LevTbl(R0), R0
+	return
+
+
+; small introduction of level (if we have it)
+LevelIntro:
+	call	GetLevelAddr
+	tstb	-(R0)				; do we have level intro?
+	bne	99$
+	clr	R1
+10$:	inc	R1				; R1 = text length+1
+	tstb	-(R0)
+	bne	10$
+	inc	R0				; R0 = level text name addr
+	mov	#120.*C_SCRWID+32.+C_VADDR, R5
+	sub	R1, R5
+	call	PrintStr
+	call	DuplicateScreen
+	; wait a bit
+	mov	#100., R0
+20$:	call	WaitVSync
+	sob	R0, 20$
+	call	ClearScreen
+99$:	return
+
+
 ; load level, LEVEL - num
 LoadLevel:
 	; clear npc spawn pool, 14. npc's spawn pools
@@ -1174,12 +1205,10 @@ LoadLevel:
 	sob	R3, .-2
 	mov	#PowerC, PowerCAddr
 	; unpack level
-	mov	Level, R0
-	asl	R0
-	mov	LevTbl(R0), R0			; source packed addr
+	call	GetLevelAddr			; R0 - packed level addr
 	mov	#LevelC, R1
 	call	Unpack
-	; adjust unpacked level to field and draw borders
+	; adjust unpacked level to field and put borders
 	call	ULevelAdj
 	; process levelC
 	clr	R5				; k-addr
@@ -3113,7 +3142,8 @@ KeffTblDisso:	.byte	30., 30., 31., 31., 32., 32., 33., 33., 34., 34., 35., 35., 
 
 ; levels addr
 LEVTBL:	.word	LEVF00, LEVF01, LEVF02, LEVF03, LEVF04, LEVF05, LEVF06, LEVF07, LEVF08, LEVF09
-	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15
+	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16
+
 
 ; upper/lower/left bytes for level walls
 LevWUpper:	.byte	018, 019, 020, 019, 021, 020, 019, 022, 022, 020, 019, 021, 020, 019, 020, 023
@@ -3135,6 +3165,8 @@ LevWLeft:	.byte	024, 025, 026, 027, 024, 024, 025, 026, 027, 024
 	; S - 14 + 64 = 78
 
 	; level data (packed with zx0)
+
+	.asciz	<0>"SIMPLE ENOUGH"	
 LEVF00:
 @packstart10
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3149,6 +3181,7 @@ LEVF00:
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF01:
 @packstart10
 	.byte	  0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0
@@ -3162,7 +3195,8 @@ LEVF01:
 	.byte	 04,  80,  04,   0,   0,   0,  04,  02,  04,   0,   0,   0,   0,   0
 	.byte	  0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0
 @packend
-	
+
+	.asciz	<0>"BEE<S PROBLEM"
 LEVF02:
 @packstart10
 	.byte	  0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3177,6 +3211,7 @@ LEVF02:
 	.byte	  0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF03:
 @packstart10
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3191,6 +3226,7 @@ LEVF03:
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF04:
 @packstart10
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3205,6 +3241,7 @@ LEVF04:
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"RHOM BUSES"
 LEVF05:
 @packstart10
 	.byte	  0,   0,   2,   0,   0,  81,   0,   0,   2,   0,   0,   0,   0,   0
@@ -3219,6 +3256,7 @@ LEVF05:
 	.byte	  0,   0,  81,   0,   0,   2,   0,   0,  81,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF06:
 @packstart10
 	.byte	  0,   0,   0,   2,   2, 129,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3233,6 +3271,7 @@ LEVF06:
 	.byte	  0,   9,   9, 130,   0,   9,   9,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"GO BOWL"
 LEVF07:
 @packstart10
 	.byte	  0,   0, 132,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3247,6 +3286,7 @@ LEVF07:
 	.byte	  0,   0, 132,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"BOMBS AWAY"
 LEVF08:
 @packstart10
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3261,6 +3301,7 @@ LEVF08:
 	.byte	  0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF09:
 @packstart10
 	.byte	  0,   0,   3,   0, 129,   0,   3,   0,   0,   0,   0,   0,   0,   0
@@ -3275,6 +3316,7 @@ LEVF09:
 	.byte	  0,   0,   3,   0, 129,   0,   3,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"BATMAN"
 LEVF10:
 @packstart10
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3289,6 +3331,7 @@ LEVF10:
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF11:
 @packstart10
 	.byte	  6,   0,   0,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0
@@ -3303,9 +3346,10 @@ LEVF11:
 	.byte	  6,   0,   0,   0,   0,   0,   0,   0,   6,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"DIGITAL"
 LEVF12:
 @packstart10
-	.byte	129,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   7,   0,   0,   6, 134,   6,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   7,   0,   0,   6,   0,   6,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   7,   0,   0,   6,   6,   6,   0,   0,   0,   0,   0,   0
@@ -3314,9 +3358,10 @@ LEVF12:
 	.byte	  0,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   6, 134,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   6,   0,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
-	.byte	129,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   6,   6,   6,   0,   0,   7,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF13:
 @packstart10
 	.byte	129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3331,6 +3376,7 @@ LEVF13:
 	.byte	129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"WHAT A"
 LEVF14:
 @packstart10
 	.byte	129,   0,   0,   1,   7,  78,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3345,6 +3391,7 @@ LEVF14:
 	.byte	129,   0,   0,   1,   7,  78,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
 LEVF15:
 @packstart10
 	.byte	134,   0,   0,   0,   1,   2,   7,   0,   0,   0,   0,   0,   0,   0
@@ -3358,7 +3405,23 @@ LEVF15:
 	.byte	  0,   0,   0,   0,   1,   2,   7,   0,   0,   0,   0,   0,   0,   0
 	.byte	134,   0,   0,   0,   1,   2,   7,   0,   0,   0,   0,   0,   0,   0
 @packend
-	
+
+	.asciz	<0>"WHO TURNED OFF THE LIGHTS"
+LEVF16:
+@packstart10
+	.byte	129,   0,   0,   0,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	129,   0,   0,   0,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
+@packend
+
+
 ; blocks power (3 - unbreakable)
 BGOPWR:		.byte	0, 1, 1, 1, 1, 1, 2, 3, 1, 1	; 00..09
 		.byte	1, 1, 1, 1, 1, 1, 0, 0, 0, 0	; 10..19
