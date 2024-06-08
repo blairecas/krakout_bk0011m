@@ -859,12 +859,15 @@ RestoreBat:
 
 ; Redraw background with header
 DrawBackground:
+	; is it dark level?
+	cmp	Level, #16.
+	beq	80$
 	; draw tiles
 	mov	#191., R5
 60$:	call	DrawKTile
 	dec	R5
 	bpl	60$
-	; print strings
+80$:	; print strings
 	mov	#STR013, R0	; print 'score'
 	mov	#C_FIELD_Y-16.*C_SCRWID+2.+C_VADDR, R5
 	call	PrintStr
@@ -3410,14 +3413,14 @@ LEVF15:
 LEVF16:
 @packstart10
 	.byte	129,   0,   0,   0,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	129,   0,   0,   0,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
