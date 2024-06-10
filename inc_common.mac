@@ -57,7 +57,7 @@ C_BATDVEL_MIN	= 18.
 C_BALLVEL_MIN	= 8.		; min ball velocity
 C_BALLVEL_MAX	= 8.		; max
 
-C_LEVEL_MAX	= 16.
+C_LEVEL_MAX	= 17.
 C_MAX_NPCNUM	= 10.		; 0..9 npc #
 
 ; npc #
@@ -67,6 +67,7 @@ C_NPC_BEE	= 3.
 C_NPC_ROMB	= 4.
 C_NPC_BOWL	= 5.
 C_NPC_BAT	= 6.
+C_NPC_POT	= 7.
 
 ; power-ups #
 C_PWR_E		= 17.

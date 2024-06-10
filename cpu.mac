@@ -156,6 +156,7 @@ MainMenu:
 ; 02 - global prepare play
 MainPrepare:
 	clr	Level
+;	mov	#17., Level
 	clr	Score
 	mov	#20., Lives
 	inc	CurrentMode
@@ -827,7 +828,7 @@ DrawBat:
 	bic	#^B1111111111110000, R0
 	asr	R0
 	asr	R0
-	movb	Spt006(R0), R0
+	movb	Spt020(R0), R0
 	call	DrawPreSprite
 99$:	return
 
@@ -1265,7 +1266,12 @@ LoadLevel:
 	mov	#KeffDataEnd-KeffCount/2, R3
 	clr	(R0)+
 	sob	R3, .-2
-	return
+	; set npc spawn speed at last levels
+	mov	#100, SpawnSpeed
+	cmp	Level, #17.
+	blo	99$
+	mov	#14., SpawnSpeed
+99$:	return
 
 
 ; adjust unpacked 14x10 level field to 14x10 at center and draw borders
@@ -1712,7 +1718,7 @@ BallVsNpc:
 	; bal is glued - dont change angle
 	call	GLUTST
 	bcs	70$
-	; npc #4. - always set ball angle to right (with a bit of random)
+	; npc #4. (rhombus) - always set ball angle to right (with a bit of random)
 	cmp	(R5), #4.
 	bne	60$
 	bit	#1, Lfsr00
@@ -1721,11 +1727,14 @@ BallVsNpc:
 	br	70$
 58$:	mov	#125., BallAngle
 	br	70$
-60$:	; random ball angle
+60$:	; npc #7. (pot) - always change ball angle
+	cmp	(R5), #7.
+	beq	64$
+	; random ball angle
 	call	RND256
 	cmp	R0, #86.			; ~1/3 chance
 	bhis	70$
-	call	RND256
+64$:	call	RND256
 	asr	R0				; R0 <- 0..127
 	call	ANGFI2				; fixing some angles
 	mov	R0, BallAngle			; new ball angle
@@ -2456,7 +2465,8 @@ NPCSPA:	add	#6, NPSPAD		; cycle spawn points
 	beq	10$
 	return
 10$:	call	RND256			; random timer again
-	add	#100., R0		; some delay
+	asr	R0
+	add	SpawnSpeed, R0		; some delay
 	mov	R0, NPCSP0
 	mov	@NPSPAD, R4
 	add	#2, NPSPAD
@@ -2707,7 +2717,7 @@ NPD005:	mov	NpcAdr, R5
 
 ; 'npc bat'
 NPD006:	mov	NpcAdr, R5
-	mov	#Spt007, R0
+	mov	#Spt006, R0
 	call	N4Frame
 	; timer 2
 	inc	16(R5)				; timer 2
@@ -2731,6 +2741,43 @@ NPD006:	mov	NpcAdr, R5
 	call	FieldHit
 	mov	NpcAdr, R5			; r5 was broken in fieldhit
 	return 
+
+
+; 'pot'
+NPD007:	mov	NpcAdr, R5
+	mov	#Spt007, R0
+	call	N4Frame
+40$:	; movement
+	add	#256., 12(R5)			; increase Y
+	; check if hit anything
+	mov	10(R5), R0
+	clrb	R0
+	swab	R0
+	asr	R0
+	asr	R0
+	asr	R0
+	asr	R0
+	mov	12(R5), R1
+	clrb	R1
+	swab	R1
+	add	#14., R1			; point to bottom
+	bic	#^B1111, R1
+	add	R1, R0				; R0 = k-addr
+	tstb	LevelC(R0)
+	beq	99$
+	mov	#3, SoundNum			; sound = 3 (npc boom)
+	mov	#255., 2(R5)			; state to 255. (boom)
+	clr	4(R5)				; clear substate
+	clr	14(R5)				; clear timer 1
+	; remove block if its not last line
+	cmp	R0, #11.*16.
+	bhis	99$
+	mov	R0, R5
+	mov	#KeffTblDisso, R1		; dissolve seq addr
+	clrb	LevelC(R5)
+	call	KeffAdd
+	mov	NpcAdr, R5			; restore R5 just in case
+99$:	return 
 
 
 ; set 4-frame sprite id
@@ -2783,7 +2830,7 @@ NpcVsNpc:
 
 
 ; npc process routines table
-NpdTBL:		.word	NPD000, NPD001, NPD002, NPD003, NPD004, NPD005, NPD006, 0, 0, 0
+NpdTBL:		.word	NPD000, NPD001, NPD002, NPD003, NPD004, NPD005, NPD006, NPD007, 0, 0
 
 PrevNpcAddr:	.word	0
 
@@ -3093,12 +3140,12 @@ Level:		.word	0
 Lives:		.word	20
 Score:		.word	0
 UseCheat:	.word	0
+SpawnSpeed:	.word	100			; npc spawn speed
 
 RightWall:	.byte	0			; right wall presence
 LostCounter:	.byte	0			; are we dying? (counter 1..150 or so)
 ScoreChanged:	.byte	0			; 1 - need redraw score
 LivesChanged:	.byte	0			; 1 - need redraw lives
-
 BallSuper:	.byte	0
 BallSuperCnt:	.byte	0
 
@@ -3122,7 +3169,7 @@ BNorT2:		.byte	85, 83, 81, 79, 77, 75, 74, 73, 72, 71
 		.even
 
 ; npc maximal count
-NpcCnm:		.byte	0, 2, 1, 1, 2, 1, 2, 0, 0, 0
+NpcCnm:		.byte	0, 2, 1, 1, 2, 1, 2, 4, 0, 0
 		.even
 ; npc count buffer
 NpcCnt:		.blkb	C_MAX_NPCNUM
@@ -3145,7 +3192,7 @@ KeffTblDisso:	.byte	30., 30., 31., 31., 32., 32., 33., 33., 34., 34., 35., 35., 
 
 ; levels addr
 LEVTBL:	.word	LEVF00, LEVF01, LEVF02, LEVF03, LEVF04, LEVF05, LEVF06, LEVF07, LEVF08, LEVF09
-	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16
+	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16, LEVF17
 
 
 ; upper/lower/left bytes for level walls
@@ -3160,6 +3207,7 @@ LevWLeft:	.byte	024, 025, 026, 027, 024, 024, 025, 026, 027, 024
 	; 4 romb - 132
 	; 5 bowl - 133
 	; 6 bat  - 134
+	; 7 pot  - 135
 
 	; pwr-ups data: (+64)
 	; E - 17 + 64 = 81
@@ -3199,7 +3247,7 @@ LEVF01:
 	.byte	  0,  03,   0, 129,   0,   0,   0,  03,   0,   0,   0,   0,   0,   0
 @packend
 
-	.asciz	<0>"BEE<S PROBLEM"
+	.asciz	<0>"BEE?S PROBLEM"
 LEVF02:
 @packstart10
 	.byte	  0,   0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0
@@ -3424,6 +3472,21 @@ LEVF16:
 	.byte	129,   1,   1,   1,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.byte	255
+LEVF17:
+@packstart10
+	.byte	135, 135, 135, 135, 135, 135, 135, 135,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   0,   0,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   2,   2,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
+@packend
+
 
 ; blocks power (3 - unbreakable)
 BGOPWR:		.byte	0, 1, 1, 1, 1, 1, 2, 3, 1, 1	; 00..09
@@ -3446,10 +3509,12 @@ Spt003: 	.byte	34, 35
 Spt004:		.byte	36, 37, 38, 39, 38, 37
 ; 'bowling' animation
 Spt005:		.byte	40, 41, 42, 43
-; 'stunned' animation
-Spt006:		.byte	44, 45, 46, 47
 ; 'npc bat' animation
-Spt007:		.byte	50, 51, 52, 53
+Spt006:		.byte	50, 51, 52, 53
+; 'pot' animation
+Spt007:		.byte	06, 07, 08, 09
+; 'stunned' animation
+Spt020:		.byte	44, 45, 46, 47
 
 
 SndTable:	.word	0, Snd001, Snd002, Snd003, Snd004, Snd005, Snd006, 0, 0, 0
@@ -3530,7 +3595,9 @@ Str010:		.asciz	"OFF"
 Str011:		.asciz	"ON "
 Str013:		.asciz	<1>"SCORE"
 Str012:		.asciz	<1>"LEVEL"
-StrScroll:	.asciz	"KRAKOUT FOR BK0011M - TEST SCROLLING - TEST SCROLLING           "
+StrScroll:	.ascii	"KRAKOUT FOR BK0011M BY BLAIRE CAS=  ORIGINAL\ SINCLAIR ZX SPECTRUM GAME:;<C> GREMLIN GRAPHICS 1987=  "
+		.ascii	"THANKS\ GID[ SANDRO <EMULATORS>[ REDDIE <ZX0 UNPACK>[ EINAR SAUKAS <ZX0 PACK>[ MANWE <BIN2WAV>=== AND ALL FROM BK COMMUNITY=  "
+		.asciz	"                             "
 		.even
 
 ; graphics
