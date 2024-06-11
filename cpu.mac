@@ -9,6 +9,7 @@
 Start:	mtps	#200
 	mov	#1000, SP
 	mov	SP, @#4
+	call	MusicMute
 
 	; keyboadr interrupt
 	mov	#KbdInt, @#60
@@ -99,6 +100,8 @@ MainReset:
 	call	PrintMenuPalette
 	call	PrintMenuCheat
 	call	PrintMenuSound
+	clr	R0
+	call	MusicInit
 	clr	KeyCurrent
 	inc	CurrentMode
 	return
@@ -116,7 +119,7 @@ MainReset:
 MainMenu:
 	call	ScrollBottom
 	call	MenuBallProc
-;	call	ProcessSound
+	call	MusicPlay
 	; keys
 	cmp	KeyCurrent, #C_KEY_SPACE
 	bne	10$
@@ -155,6 +158,7 @@ MainMenu:
 
 ; 02 - global prepare play
 MainPrepare:
+	call	MusicMute
 	clr	Level
 ;	mov	#17., Level
 	clr	Score
@@ -1144,17 +1148,22 @@ MenuBallProc:
 ; // Music
 ; //////////////////////////////////////////////////////////////////////////////
 
-HaveMusic:	.word	0
-
 MusicInit:
+	mov	#C_RAM_BANKS17, @#177716
+	call	@#100000
+	mov	#C_RAM_BANKS15, @#177716
 	return
-
 
 MusicPlay:
+	mov	#C_RAM_BANKS17, @#177716
+	call	@#100002
+	mov	#C_RAM_BANKS15, @#177716
 	return
 
-
 MusicMute:
+	mov	#C_RAM_BANKS17, @#177716
+	jmp	@#100004
+	mov	#C_RAM_BANKS15, @#177716
 	return
 
 
@@ -2490,7 +2499,7 @@ NPCSPA:	add	#6, NPSPAD		; cycle spawn points
 	mov	R4, (R5)+		; 00 type
 	clr	(R5)+			; 02 state = 0 (emerging)
 	clr	(R5)+			; 04 substate = 0
-	mov	#1, (R5)+		; 06 spr id = 1 (emerging)
+	mov	#2, (R5)+		; 06 spr id = 2 (emerging)
 	mov	R1, R0
 	asl	R0
 	asl	R0
@@ -3192,7 +3201,7 @@ KeffTblDisso:	.byte	30., 30., 31., 31., 32., 32., 33., 33., 34., 34., 35., 35., 
 
 ; levels addr
 LEVTBL:	.word	LEVF00, LEVF01, LEVF02, LEVF03, LEVF04, LEVF05, LEVF06, LEVF07, LEVF08, LEVF09
-	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16, LEVF17
+	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16, LEVF17, LEVF18
 
 
 ; upper/lower/left bytes for level walls
@@ -3485,6 +3494,21 @@ LEVF17:
 	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
 	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
 	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
+@packend
+
+	.asciz	<0>"HANGAR 18"
+LEVF18:
+@packstart10
+	.byte	  0, 135,   0, 135,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	133,   7,   0,   7,   7,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   7,   0,   7,   1,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   7,   0,   7,   1,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   7,   0,   7,   7,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   7,   0,   7,   1,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   7,   0,   7,   1,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	133,   7,   0,   7,   7,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
 

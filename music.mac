@@ -1,0 +1,84 @@
+	.title	CPU
+	.enabl	LC, AMA
+	.asect
+	.=100000
+
+
+Start:	br	InitMusic
+	br	PlayMusic
+	br	MuteMusic
+
+
+; R0 = song ID
+InitMusic:
+	asl	R0
+	asl	R0
+	mov	MusicTable+2(R0), PsgEndAddr
+	mov	MusicTable(R0), R0
+	add	#16., R0
+	mov	R0, PsgCurrentAddr
+	call	MuteMusic
+	inc	PsgPlaying
+	return
+
+
+; call this every frame
+PlayMusic:
+	tst	PsgPlaying
+	beq	99$
+	tstb	PsgSkipFrames
+	beq	10$
+	decb	PsgSkipFrames
+	return
+10$:	cmp	PsgCurrentAddr, PsgEndAddr
+	bhis	MuteMusic
+	movb	@PsgCurrentAddr, R0
+	inc	PsgCurrentAddr
+	cmpb	R0, #377
+	beq	99$
+	cmpb	R0, #376
+	bne	20$
+	movb	@PsgCurrentAddr, PsgSkipFrames
+	inc	PsgCurrentAddr
+	return
+20$:	com	R0
+	mov	R0, @#177714
+	movb	@PsgCurrentAddr, R0
+	inc	PsgCurrentAddr
+	com	R0
+	movb	R0, @#177714
+	br	10$
+99$:	return
+
+
+; mute AY device
+MuteMusic:
+	clr	PsgPlaying
+	mov	#177714, R0
+	mov	#^C07., (R0)
+	movb	#^C77, (R0)
+	mov	#^C08., (R0)
+	movb	#377, (R0)
+	mov	#^C09., (R0)
+	movb	#377, (R0)
+	mov	#^C10., (R0)
+	movb	#377, (R0)
+	return
+
+
+; /////////////////////////////////////////////////////////////////
+; // Data
+; /////////////////////////////////////////////////////////////////
+
+PsgPlaying:	.word	0
+PsgSkipFrames:	.word	0
+PsgCurrentAddr:	.word	0
+PsgEndAddr:	.word	0
+
+MusicTable:	.word	Song00, Song00End
+
+Song00:
+@includebin ./music/krakou.psg
+Song00End:
+
+	.end	Start

@@ -13,6 +13,18 @@ if %ERRORLEVEL% NEQ 0 ( exit /b )
 
 echo.
 echo ===========================================================================
+echo Compiling MUSIC
+echo ===========================================================================
+php -f ..\scripts\preprocess.php music.mac
+if %ERRORLEVEL% NEQ 0 ( exit /b )
+..\scripts\macro11.exe -ysl 32 -yus -l _music.lst _music.mac
+if %ERRORLEVEL% NEQ 0 ( exit /b )
+php -f ..\scripts\lst2bin.php _music.lst _music.bin bin 100000
+if %ERRORLEVEL% NEQ 0 ( exit /b )
+..\scripts\zx0 -f _music.bin _music_lz.bin
+
+echo.
+echo ===========================================================================
 echo Compiling CPU
 echo ===========================================================================
 php -f ..\scripts\preprocess.php cpu.mac

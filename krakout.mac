@@ -9,7 +9,13 @@
 
 Start:	mtps	#200
 
-	; banks [0] 1 5(vram0)
+	; first unpack music to bank #7
+	mov	#C_RAM_BANKS17, @#177716
+	mov	#MusicBin, R0
+	mov	#100000, R1
+	call	Unpack
+
+	; set banks [0] 1 5(vram0)
 	mov	#C_RAM_BANKS15, @#177716
 
 	; relocate unpacker to 100000
@@ -104,10 +110,14 @@ DZX0_ELIAS_BACKTRACK:
 LoaderEnd:
 
 ; // Main program /////////////////////////////////////////////////////////////
-
 CpuBin:
 	@includebin _cpu_lz.bin
 	.even
 CpuBinEnd:
+
+; // Music 
+MusicBin:
+	@includebin _music_lz.bin
+	.even
 
 	.end Start
