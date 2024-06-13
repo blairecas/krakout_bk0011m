@@ -100,8 +100,9 @@ MainReset:
 	call	PrintMenuPalette
 	call	PrintMenuCheat
 	call	PrintMenuSound
-	clr	R0
+	clr	R0						; song # = 0
 	call	MusicInit
+	mov	#25., MusicDelay				; delay a bit
 	clr	KeyCurrent
 	inc	CurrentMode
 	return
@@ -163,6 +164,7 @@ MainPrepare:
 ;	mov	#17., Level
 	clr	Score
 	mov	#20., Lives
+	mov	#1., Lives
 	inc	CurrentMode
 	return
 
@@ -260,6 +262,23 @@ MainLiveLost:
 
 ; 07 - game over
 MainGameOver:
+	; print some text and play music
+	call	ClearScreen
+	mov	#StrOver, R0				; GAME OVER
+	mov	#110.*C_SCRWID+32.+C_VADDR-10., R5
+	call	PrintStr
+	call	DuplicateScreen
+	mov	#1, R0
+	call	MusicInit
+	mov	#10., MusicDelay			; delay a bit
+	; wait 3 sec
+	mov	#150., 20$+2
+10$:	call	WaitVsync
+	call	MusicPlay
+20$:	dec	#000000
+	bne	10$
+	; mode to reset
+	call	MusicMute
 	mov	#C_MODE_RESET, CurrentMode
 	return
 
@@ -1148,14 +1167,21 @@ MenuBallProc:
 ; // Music
 ; //////////////////////////////////////////////////////////////////////////////
 
+MusicDelay:	.word	0
+
 MusicInit:
 	mov	#C_RAM_BANKS17, @#177716
 	call	@#100000
 	mov	#C_RAM_BANKS15, @#177716
+	clr	MusicDelay
 	return
 
 MusicPlay:
-	mov	#C_RAM_BANKS17, @#177716
+	tst	MusicDelay
+	bmi	10$
+	dec	MusicDelay
+	return
+10$:	mov	#C_RAM_BANKS17, @#177716
 	call	@#100002
 	mov	#C_RAM_BANKS15, @#177716
 	return
@@ -1575,17 +1601,15 @@ TestLevelEnd:
 	; now check field
 	mov	#LevelC, R5
 	mov	#192., R3
-	mov	#^B1111111100111111, R1
+	mov	#^B1111111111000000, R1
 30$:	movb	(R5)+, R0
 	bic	R1, R0
-	asl	R0
-	asl	R0
-	swab	R0
-	cmp	#1, R0				; 1 or 2 - still can't end level
-	beq	99$				; but not 3 !
-	cmp	#2, R0
-	beq	99$
-	sob	R3, 30$
+	beq	40$
+	cmpb	R0, #7.				; don't count unbreakable block
+	beq	40$
+	cmpb	R0, #10.
+	blo	99$
+40$:	sob	R3, 30$
 	mov	#C_MODE_LEVEND, CurrentMode	; next level prepare
 99$:	return
 
@@ -3619,6 +3643,7 @@ Str010:		.asciz	"OFF"
 Str011:		.asciz	"ON "
 Str013:		.asciz	<1>"SCORE"
 Str012:		.asciz	<1>"LEVEL"
+StrOver:	.asciz	"GAME OVER"
 StrScroll:	.ascii	"KRAKOUT FOR BK0011M BY BLAIRE CAS=  ORIGINAL\ SINCLAIR ZX SPECTRUM GAME:;<C> GREMLIN GRAPHICS 1987=  "
 		.ascii	"THANKS\ GID[ SANDRO <EMULATORS>[ REDDIE <ZX0 UNPACK>[ EINAR SAUKAS <ZX0 PACK>[ MANWE <BIN2WAV>=== AND ALL FROM BK COMMUNITY=  "
 		.asciz	"                             "

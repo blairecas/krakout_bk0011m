@@ -75,10 +75,14 @@ PsgSkipFrames:	.word	0
 PsgCurrentAddr:	.word	0
 PsgEndAddr:	.word	0
 
-MusicTable:	.word	Song00, Song00End
+MusicTable:	.word	Song00, Song00End, Song01, Song01End
 
 Song00:
 @includebin ./music/krakou.psg
 Song00End:
+
+Song01:
+@includebin ./music/over.psg
+Song01End:
 
 	.end	Start
