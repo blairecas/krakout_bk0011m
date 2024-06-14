@@ -18,6 +18,7 @@ InitMusic:
 	add	#16., R0
 	mov	R0, PsgCurrentAddr
 	call	MuteMusic
+	clr	PsgSkipFrames
 	inc	PsgPlaying
 	return
 
@@ -26,9 +27,9 @@ InitMusic:
 PlayMusic:
 	tst	PsgPlaying
 	beq	99$
-	tstb	PsgSkipFrames
+	tst	PsgSkipFrames
 	beq	10$
-	decb	PsgSkipFrames
+	dec	PsgSkipFrames
 	return
 10$:	cmp	PsgCurrentAddr, PsgEndAddr
 	bhis	MuteMusic
@@ -38,7 +39,10 @@ PlayMusic:
 	beq	99$
 	cmpb	R0, #376
 	bne	20$
+	clr	PsgSkipFrames
 	movb	@PsgCurrentAddr, PsgSkipFrames
+	asl	PsgSkipFrames
+	asl	PsgSkipFrames
 	inc	PsgCurrentAddr
 	return
 20$:	com	R0

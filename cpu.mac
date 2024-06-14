@@ -102,7 +102,7 @@ MainReset:
 	call	PrintMenuSound
 	clr	R0						; song # = 0
 	call	MusicInit
-	mov	#25., MusicDelay				; delay a bit
+	mov	#30., MusicDelay				; delay a bit
 	clr	KeyCurrent
 	inc	CurrentMode
 	return
@@ -164,7 +164,7 @@ MainPrepare:
 ;	mov	#17., Level
 	clr	Score
 	mov	#20., Lives
-	mov	#1., Lives
+;	mov	#1., Lives
 	inc	CurrentMode
 	return
 
@@ -209,8 +209,12 @@ MainLevel:
 	bne	2$
 	clr	KeyCurrent
 	mov	#C_MODE_LEVEND, CurrentMode
-2$:	;
-	; end debug info
+2$:	; key 2 - game over
+	cmp	KeyCurrent, #C_KEY_2
+	bne	3$
+	clr	KeyCurrent
+	mov	#C_MODE_OVER, CurrentMode
+3$:	; end debug info
 	;
 
 	; sound & print
@@ -271,12 +275,10 @@ MainGameOver:
 	mov	#1, R0
 	call	MusicInit
 	mov	#10., MusicDelay			; delay a bit
-	; wait 3 sec
-	mov	#150., 20$+2
+	mov	#150., R3				; wait 3 sec
 10$:	call	WaitVsync
 	call	MusicPlay
-20$:	dec	#000000
-	bne	10$
+	sob	R3, 10$
 	; mode to reset
 	call	MusicMute
 	mov	#C_MODE_RESET, CurrentMode
@@ -3512,9 +3514,9 @@ LEVF17:
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	  1,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	  1,   1,   0,   0,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0
-	.byte	  1,   1,   2,   2,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  7,   7,   0,   0,   7,   7,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   7,   7,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  1,   1,   2,   2,   3,   3,   7,   7,   0,   0,   0,   0,   0,   0
 	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
 	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
 	.byte	  1,   1,   2,   2,   3,   3,   4,   4,   0,   0,   0,   0,   0,   0
