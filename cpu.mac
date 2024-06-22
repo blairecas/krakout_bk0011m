@@ -100,9 +100,9 @@ MainReset:
 	call	PrintMenuPalette
 	call	PrintMenuCheat
 	call	PrintMenuSound
-	clr	R0						; song # = 0
+	clr	R0				; song # = 0
 	call	MusicInit
-	mov	#30., MusicDelay				; delay a bit
+	mov	#30., MusicDelay		; delay a bit
 	clr	KeyCurrent
 	inc	CurrentMode
 	return
@@ -160,8 +160,7 @@ MainMenu:
 ; 02 - global prepare play
 MainPrepare:
 	call	MusicMute
-;	clr	Level
-	mov	#19., Level
+	clr	Level
 	clr	Score
 	mov	#20., Lives
 	inc	CurrentMode
@@ -209,7 +208,12 @@ MainLevel:
 	bne	3$
 	clr	KeyCurrent
 	mov	#C_MODE_OVER, CurrentMode
-3$:	; end debug info
+3$:	; key 3 - max level
+	cmp	KeyCurrent, #C_KEY_3
+	bne	4$
+	mov	#C_LEVEL_MAX-1, Level
+	mov	#C_MODE_LEVEND, CurrentMode
+4$:	; end debug info
 	;
 
 	; sound & print
@@ -249,7 +253,10 @@ MainLevelEnd:
 
 ; 06 - live lost
 MainLiveLost:
-	call	ClearScreen
+	tstb	YouWin				; win a boss fight?
+	beq	10$
+	br	MainLevelEnd			; TODO: win screen
+10$:	call	ClearScreen
 	call	ClearNpc
 	call	DefCoords
 	clr	KeyCurrent
@@ -262,14 +269,14 @@ MainLiveLost:
 MainGameOver:
 	; print some text and play music
 	call	ClearScreen
-	mov	#StrOver, R0				; GAME OVER
+	mov	#StrOver, R0			; GAME OVER
 	mov	#110.*C_SCRWID+32.+C_VADDR-10., R5
 	call	PrintStr
 	call	DuplicateScreen
 	mov	#1, R0
 	call	MusicInit
-	mov	#10., MusicDelay			; delay a bit
-	mov	#150., 20$+2				; wait 3 sec
+	mov	#10., MusicDelay		; delay a bit
+	mov	#150., 20$+2			; wait 3 sec
 10$:	call	WaitVsync
 	call	MusicPlay
 20$:	dec	#150.
@@ -294,9 +301,9 @@ RamBankIds:	.byte	C_RAM_0, C_RAM_1, C_RAM_2, C_RAM_3, C_RAM_4, C_RAM_5, C_RAM_6,
 ; to restore it with xor
 ChangedCur:	.word	ChangedSpr0
 ChangedBat:	.word	ChangedBat0
-ChangedSpr0:	.blkw	8.*4				; 8. sprites max to draw (!)
-ChangedSpr1:	.blkw	8.*4				; banks, source, dest, DY
-ChangedBat0:	.blkw	4				; bat vaddr, bat DY (and same for boss bat)
+ChangedSpr0:	.blkw	8.*4			; 8. sprites max to draw (!)
+ChangedSpr1:	.blkw	8.*4			; banks, source, dest, DY
+ChangedBat0:	.blkw	4			; bat vaddr, bat DY (and same for boss bat)
 ChangedBat1:	.blkw	4
 
 CurrentMode:	.word	0
@@ -318,7 +325,7 @@ KbdInt:	mov	@#177662, KeyCurrent
 
 ; wait for vsync proc
 WaitVsync:
-	inc	#000000					; empty cycles counts for debug
+	inc	#000000				; empty cycles counts for debug
 	tst	VsyCnt
 	beq	WaitVsync
 	clr	VsyCnt
@@ -339,9 +346,9 @@ SwitchBuffers:
 	mov	#^B10000000, R0
 	bis	Palette, R0
 	movb	R0, @#177663
-	clr	@ChangedCur				; clear last+1 'changed' addr
-	mov	#ChangedSpr0, ChangedCur		; switch it to next
-	mov	#ChangedBat0, ChangedBat		; switch bat data to next
+	clr	@ChangedCur			; clear last+1 'changed' addr
+	mov	#ChangedSpr0, ChangedCur	; switch it to next
+	mov	#ChangedBat0, ChangedBat	; switch bat data to next
 	return
 10$:	; buffer 6 to draw, buffer 5 to screen
 	mov	#C_RAM_BANKS16, R0
@@ -359,10 +366,10 @@ SwitchBuffers:
 DuplicateScreen:
 	mov	#C_SCRWID-4, R2
 	mov	#255., R4
-10$:	call	Galois8bit				; R0 = random 1..255
+10$:	call	Galois8bit			; R0 = random 1..255
 	call	50$
 	sob	R4, 10$
-	clr	R0					; and now last zero kub (Galois LFSR can't use 0)
+	clr	R0				; and now last zero kub (Galois LFSR can't use 0)
 50$:	; mov kub by R0
 	mov	#C_RAM_BANKS56, @#177716
 	mov	R0, R1
@@ -392,7 +399,7 @@ DuplicateScreen:
 ClearScreen:
 	clr	CurrentBuffer
 	call	SwitchBuffers
-	mov	#C_RAM_BANKS16, @#177716		; first clear buffer 1
+	mov	#C_RAM_BANKS16, @#177716	; first clear buffer 1
 	mov	#C_VADDR, R5
 	mov	#20000, R3
 10$:	clr	(R5)+
@@ -855,7 +862,7 @@ DrawBat:
 
 ; boss bat draw
 DrawBossBat:
-	tst	BossFight
+	tstb	BossFight
 	beq	99$
 	tst	BatBossDY
 	ble	99$
@@ -898,7 +905,7 @@ RestoreBat:
 
 ; boss bat restore if any
 RestoreBossBat:
-	tst	BossFight
+	tstb	BossFight
 	bne	10$
 	return
 10$:	mov	ChangedBat, R5
@@ -950,8 +957,8 @@ DrawBackground:
 	mov	#47., R0	; 47. - small bat tile
 	mov	#C_FIELD_Y-18.*C_SCRWID+50.+C_VADDR, R5
 	call	DrawTile
-	incb	ScoreChanged				; need draw score
-	incb	LivesChanged				; need draw lives
+	incb	ScoreChanged			; need draw score
+	incb	LivesChanged			; need draw lives
 	call	DuplicateScreen
 	return
 
@@ -1105,9 +1112,9 @@ JoySetup:
 	call	TestJoyPort
 	add	#C_SCRWID*12., TempY
 	; set keys
-	mov	#MsgJoyTbl, -(SP)			; 4(SP) - string table addr
-	mov	#JoyKeys, -(SP)				; 2(SP) - key table addr
-	mov	#5., -(SP)				; 0(SP) - count
+	mov	#MsgJoyTbl, -(SP)		; 4(SP) - string table addr
+	mov	#JoyKeys, -(SP)			; 2(SP) - key table addr
+	mov	#5., -(SP)			; 0(SP) - count
 30$:	mov	@4(SP), R0
 	add	#2., 4(SP)
 	call	PrintStrTempY
@@ -1120,20 +1127,20 @@ JoySetup:
 	bne	30$
 	inc	UseJoystick
 90$:	add	#6, SP
-	clr	CurrentMode				; set mode to 'reset'
+	clr	CurrentMode			; set mode to 'reset'
 	return
 
 
 ; if we using joystick - need to set key from it
 PrepareKey:
 	clr	KeyPressed
-	bit	#100, @#177716				; key pressed?
-	bne	10$					; nope
+	bit	#100, @#177716			; key pressed?
+	bne	10$				; nope
 	inc	KeyPressed
 	return
-10$:	tst	UseJoystick				; need to use joy?
+10$:	tst	UseJoystick			; need to use joy?
 	beq	99$
-	mov	@#177714, R0				; get joy bits
+	mov	@#177714, R0			; get joy bits
 	bic	JoyBadBits, R0
 	beq	99$
 	mov	#JoyKeys, R0
@@ -1227,15 +1234,15 @@ MusicInit:
 	return
 
 MusicPlay:
-	tst	MusicEnd
-	bne	99$
 	tst	MusicDelay
 	bmi	10$
 	dec	MusicDelay
 	return
 10$:	mov	#C_RAM_BANKS17, @#177716
+	tst	@MusicEnd
+	bne	20$
 	call	@#100004
-	mov	#C_RAM_BANKS15, @#177716
+20$:	mov	#C_RAM_BANKS15, @#177716
 99$:	return
 
 MusicMute:
@@ -1282,10 +1289,11 @@ LevelIntro:
 ; load level, LEVEL - num
 LoadLevel:
 	; boss fight?
-	clr	BossFight
+	clrb	YouWin
+	clrb	BossFight
 	cmp	Level, #C_LEVEL_MAX
 	bne	10$
-	inc	BossFight
+	incb	BossFight
 10$:	; clear npc spawn pool, 14. npc's spawn pools
 	mov	#NPSPAT, R0
 	mov	#14., R3
@@ -1381,7 +1389,7 @@ ULevelAdj:
 	mov	#LevWLeft, R0
 	mov	#16.+LevelC, R1
 	mov	#10., R3
-30$:	tst	BossFight
+30$:	tstb	BossFight
 	bne	32$
 	movb	(R0)+, (R1)
 	br	34$
@@ -1433,7 +1441,7 @@ DefCoords:
 	clr	BatPRZ				; paralyzation counter
 	call	BatVelInit			; init bat velocities
 	; boss bat
-	tst	BossFight
+	tstb	BossFight
 	beq	10$
 	mov	BatY, BatBossY
 	sub	#256., BatBossY			; correct a bit
@@ -1673,7 +1681,7 @@ KeffProcess:
 TestLevelEnd:
 	bit	#^B111111, FrameCount		; once in 64 frames
 	bne	99$
-	tst	BossFight
+	tstb	BossFight
 	bne	99$
 	; now check field
 	mov	#LevelC, R5
@@ -1741,11 +1749,17 @@ DrawBall:
 BallCheckOut:	
 	mov	BallX, R0
 	cmp	R0, #240.*256.			; (float) 240.0 
-	blo	90$
-	mov	#1., BatMode			; bat mode = 1 - delete bat
+	blo	20$
+10$:	mov	#1., BatMode			; bat mode = 1 - delete bat
 	incb	LostCounter			; lost countdown
 	sec
 	return
+20$:	tstb	BossFight
+	beq	90$
+	cmp	R0, #4.*256.
+	bhi	90$
+	incb	YouWin
+	br	10$
 90$:	clc
 	return
 
@@ -1913,7 +1927,10 @@ BATDO2:	cmp	KeyCurrent, #C_KEY_SPACE	; awaiting press fire
 	cmp	BATSUB, #512.
 	blo	99$
 20$:	mov	#3., BatMode			; 3 - normal bat size
-	clr	BATSUB
+	tstb	BossFight
+	beq	30$
+	inc	BatMode				; boss fight is in extended bat mode (4)
+30$:	clr	BATSUB
 	mov	#1., SoundNum
 99$:	return
 
@@ -2184,11 +2201,11 @@ GLUTST:	cmp	BatMode, #2.			; glued from start mode
 ; boss bat procedure
 ; homing on ball and that's all
 BatBossProc:
-	tst	BossFight
+	tstb	BossFight
 	beq	99$
 	; move after ball
 	mov	BallY, R0
-	add	#10.*256, R0				; R0 - ball (not) center (float)
+	add	#10.*256, R0			; R0 - ball (not) center (float)
 	sub	BatBossY, R0
 	asr	R0
 	asr	R0
@@ -2215,7 +2232,7 @@ BatBossProc:
 
 ; ball vs boss bat collision
 BatBossCol:
-	tst	BossFight
+	tstb	BossFight
 	beq	99$
 	; fast check bat collision
 	cmp	TempX, #C_BATBOSSX_PIX+8.
@@ -2387,6 +2404,8 @@ Movt02:	tstb	RightWall			; do we have right wall
 	return
 40$:	tstb	GoingLeft			; testing left wall
 	beq	50$
+	tstb	BossFight
+	bne	50$
 	cmp	R1, #11.
 	bhi	50$
 	clr	Normal				; right normal angle
@@ -2467,17 +2486,17 @@ MovtYcheck:
 ;          [                           ]
 
 ; movement 03 - collision with field checks
-Movt03:	clr	MovtXcnum				; clear both X and Y collision numbers
+Movt03:	clr	MovtXcnum			; clear both X and Y collision numbers
 	mov	TempX, R4
 	mov	TempY, R5
 	; movement by X
-	mov	#77, MovtXdist				; (temp) distance to center
-	tstb	GoingRight				; are we going right?
+	mov	#77, MovtXdist			; (temp) distance to center
+	tstb	GoingRight			; are we going right?
 	beq	10$
-	clr	MovtXnormal				; normal angle for X, use right 
-	mov	R4, R1					; X
-	mov	R5, R2					; Y
-	add	#12., R1				; adjust to a point
+	clr	MovtXnormal			; normal angle for X, use right 
+	mov	R4, R1				; X
+	mov	R5, R2				; Y
+	add	#12., R1			; adjust to a point
 	add	#03., R2
 	call	MovtXcheck
 	mov	R4, R1
@@ -2488,7 +2507,7 @@ Movt03:	clr	MovtXcnum				; clear both X and Y collision numbers
 	br	20$
 10$:	tstb	GoingLeft
 	beq	20$
-	clr	MovtXnormal				; normal angle for X, also use right
+	clr	MovtXnormal			; normal angle for X, also use right
 	mov	R4, R1
 	mov	R5, R2
 	add	#03., R1
@@ -2503,7 +2522,7 @@ Movt03:	clr	MovtXcnum				; clear both X and Y collision numbers
 	mov	#77, MovtYdist
 	tstb	GoingDown
 	beq	30$
-	mov	#32., MovtYnormal			; normal angle for Y, use down
+	mov	#32., MovtYnormal		; normal angle for Y, use down
 	mov	R4, R1
 	mov	R5, R2
 	add	#03., R1
@@ -2517,7 +2536,7 @@ Movt03:	clr	MovtXcnum				; clear both X and Y collision numbers
 	br	40$
 30$:	tstb	GoingUp
 	beq	40$
-	mov	#32., MovtYnormal			; normal angle for Y, also use down
+	mov	#32., MovtYnormal		; normal angle for Y, also use down
 	mov	R4, R1
 	mov	R5, R2
 	add	#03., R1
@@ -2529,9 +2548,9 @@ Movt03:	clr	MovtXcnum				; clear both X and Y collision numbers
 	add	#03., R2
 	call	MovtYcheck
 40$:	; analyze
-	tst	MovtXcnum				; collided at all?
+	tst	MovtXcnum			; collided at all?
 	beq	99$
-	cmpb	MovtXcnum, MovtYcnum			; check what normal to use
+	cmpb	MovtXcnum, MovtYcnum		; check what normal to use
 	blo	60$
 	bhi	50$
 	; equal - must decide which is better...
@@ -2617,16 +2636,16 @@ DrawNpc:
 1$:	mov	NpcAdr, R5
 	tst	(R5)
 	beq	99$
-	mov	(R5), R1	; R1 <- npc type
-	incb	NpcCnt(R1)	; increase this type's count
+	mov	(R5), R1			; R1 <- npc type
+	incb	NpcCnt(R1)			; increase this type's count
 	;
 	add	#6, R5
-	mov	(R5)+, R0	; R0 <- spr ID
-	mov	(R5)+, R1	; X (float)
-	clrb	R1		; change to pix
+	mov	(R5)+, R0			; R0 <- spr ID
+	mov	(R5)+, R1			; X (float)
+	clrb	R1				; change to pix
 	swab	R1
-	mov	(R5)+, R2	; Y (float)
-	clrb	R2		; change to pix
+	mov	(R5)+, R2			; Y (float)
+	clrb	R2				; change to pix
 	swab	R2
 	;
 	call	DrawPreSprite
@@ -2637,31 +2656,31 @@ DrawNpc:
 	return
 
 
-NPCSP0:	.word	345.			; spawn timer
+NPCSP0:	.word	345.				; spawn timer
 
 ; npc spawn procedure
-NPCSPA:	add	#6, NPSPAD		; cycle spawn points
+NPCSPA:	add	#6, NPSPAD			; cycle spawn points
 	tst	@NPSPAD
 	bne	1$
 	mov	#NPSPAT, NPSPAD
 1$:	dec	NPCSP0
 	beq	10$
 	return
-10$:	call	RND256			; random timer again
+10$:	call	RND256				; random timer again
 	asr	R0
-	add	SpawnSpeed, R0		; some delay
+	add	SpawnSpeed, R0			; some delay
 	mov	R0, NPCSP0
 	mov	@NPSPAD, R4
 	add	#2, NPSPAD
 	mov	@NPSPAD, R1
 	add	#2, NPSPAD
 	mov	@NPSPAD, R2
-	mov	#NPSPAT, NPSPAD		; again to before spawn pool
+	mov	#NPSPAT, NPSPAD			; again to before spawn pool
 	sub	#6, NPSPAD
 	; check max spawning count
 	mov	R4, R0
-	movb	NpcCnm(R0), R5		; max npc num on screen
-	movb	NpcCnt(R0), R0		; current npx num on screen
+	movb	NpcCnm(R0), R5			; max npc num on screen
+	movb	NpcCnt(R0), R0			; current npx num on screen
 	cmp	R0, R5
 	blt	12$
 	return
@@ -2670,30 +2689,30 @@ NPCSPA:	add	#6, NPSPAD		; cycle spawn points
 14$:	mov	NPCADR, R5
 	tst	(R5)
 	bne	20$
-	mov	R4, (R5)+		; 00 type
-	clr	(R5)+			; 02 state = 0 (emerging)
-	clr	(R5)+			; 04 substate = 0
-	mov	#2, (R5)+		; 06 spr id = 2 (emerging)
+	mov	R4, (R5)+			; 00 type
+	clr	(R5)+				; 02 state = 0 (emerging)
+	clr	(R5)+				; 04 substate = 0
+	mov	#2, (R5)+			; 06 spr id = 2 (emerging)
 	mov	R1, R0
 	asl	R0
 	asl	R0
 	asl	R0
-	asl	R0			; x-block to x-pix
-	swab	R0			; to float
-	mov	R0, (R5)+		; 10 x (floating)
+	asl	R0				; x-block to x-pix
+	swab	R0				; to float
+	mov	R0, (R5)+			; 10 x (floating)
 	mov	R2, R0
 	asl	R0
 	asl	R0
 	asl	R0
 	asl	R0
 	swab	R0
-	mov	R0, (R5)+		; 12 y (floating)
-	clr	(R5)+			; 14 timer 1
-	clr	(R5)+			; 16 timer 2
+	mov	R0, (R5)+			; 12 y (floating)
+	clr	(R5)+				; 14 timer 1
+	clr	(R5)+				; 16 timer 2
 	call	Rnd256
-	asr	R0			; 0..127
-	mov	R0, (R5)+		; 20 data 1 (usually angle)
-	clr	(R5)+			; 22 data 2
+	asr	R0				; 0..127
+	mov	R0, (R5)+			; 20 data 1 (usually angle)
+	clr	(R5)+				; 22 data 2
 	return
 20$:	add	#20., NPCADR
 	cmp	NPCADR, #NPCTBE
@@ -3194,7 +3213,7 @@ ScrollPrepare:
 ; scroll line of text on bottom
 ScrollBottom:
 	mov	#C_SCRWID*C_SCROLL_Y+12.+C_VADDR, R5
-	mov	#C_SCRWID, R2				; R2 = vaddr addition
+	mov	#C_SCRWID, R2			; R2 = vaddr addition
 	; scroll out 1st word
 	mov	#6., R3
 10$:	mov	(R5), R0
@@ -3226,18 +3245,18 @@ ScrollBottom:
 	dec	R5
 	; put text bits on upper 2 bits 
 	movb	@ScrollInText, R4
-	sub	#'0, R4					; relative to '0'
+	sub	#'0, R4				; relative to '0'
 	bge	40$
-	mov	#16., R4				; any chars below '0' converted to #16 (here its a space)
-40$:	asl	R4					; *16 bytes (character font size)
+	mov	#16., R4			; any chars below '0' converted to #16 (here its a space)
+40$:	asl	R4				; *16 bytes (character font size)
 	asl	R4
 	asl	R4
 	asl	R4
-	add	#FontCpuData, R4			; R4 = font data
+	add	#FontCpuData, R4		; R4 = font data
 	; bis them
 	mov	#6., R3
-50$:	mov	(R4)+, R0				; source bits from character data
-	mov	ScrollIn8, R2				; shift them by ScrollIn8
+50$:	mov	(R4)+, R0			; source bits from character data
+	mov	ScrollIn8, R2			; shift them by ScrollIn8
 	clr	R1
 60$:	ror	R0
 	clc
@@ -3324,7 +3343,9 @@ Lives:		.word	20
 Score:		.word	0
 UseCheat:	.word	0
 SpawnSpeed:	.word	100			; npc spawn speed
-BossFight:	.word	0
+
+BossFight:	.byte	0
+YouWin:		.byte	0
 
 RightWall:	.byte	0			; right wall presence
 LostCounter:	.byte	0			; are we dying? (counter 1..150 or so)
@@ -3373,7 +3394,7 @@ NPSPAT:	.blkw	44				; type, x-block, y-block
 ; NPC table (10 max)
 ; NPC object: type, state, substate, spr id, x, y, timer1, timer2, data1, data2
 NpcAdr:		.word	0
-NpcTbl:		.blkw	100				; 10 objects by 10 words
+NpcTbl:		.blkw	100			; 10 objects by 10 words
 NpcTbe:
 
 ; kub effects tables
@@ -3819,7 +3840,7 @@ Str013:		.asciz	<1>"SCORE"
 Str012:		.asciz	<1>"LEVEL"
 StrOver:	.asciz	"GAME OVER"
 StrScroll:	.ascii	"KRAKOUT FOR BK0011M BY BLAIRE CAS=  ORIGINAL\ SINCLAIR ZX SPECTRUM GAME:;<C> GREMLIN GRAPHICS 1987=  "
-		.ascii	"THANKS\ GID[ SANDRO <EMULATORS>[ REDDIE <MUSIC[ZX0 UNPACK>[ KUVO <PT3 PLAYER>[ MANWE <BIN2WAV>=== AND ALL FROM BK COMMUNITY=  "
+		.ascii	"THANKS\ GID[ SANDRO <EMULATORS>[ REDDIE <MUSIC[ ZX0 UNPACK>[ KUVO <PT3 PLAYER>[ MANWE <BIN2WAV>=== AND ALL FROM BK COMMUNITY=  "
 		.asciz	"                             "
 		.even
 
