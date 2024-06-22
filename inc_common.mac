@@ -28,6 +28,10 @@ C_SPR_MAX	= 64.
 
 C_BATX_PIX	= 216.
 C_BATX_WORD	= C_BATX_PIX/8.*2
+
+C_BATBOSSX_PIX	= 32.
+C_BATBOSSX_WORD	= C_BATBOSSX_PIX/8.*2
+
 C_BATX2BALLX	= C_BATX_PIX-14.*256.
 
 ; keys
@@ -58,7 +62,7 @@ C_BATDVEL_MIN	= 18.
 C_BALLVEL_MIN	= 8.		; min ball velocity
 C_BALLVEL_MAX	= 8.		; max
 
-C_LEVEL_MAX	= 18.
+C_LEVEL_MAX	= 19.
 C_MAX_NPCNUM	= 10.		; 0..9 npc #
 
 ; npc #

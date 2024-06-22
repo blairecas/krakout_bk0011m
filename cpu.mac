@@ -160,11 +160,10 @@ MainMenu:
 ; 02 - global prepare play
 MainPrepare:
 	call	MusicMute
-	clr	Level
-;	mov	#17., Level
+;	clr	Level
+	mov	#19., Level
 	clr	Score
 	mov	#20., Lives
-;	mov	#1., Lives
 	inc	CurrentMode
 	return
 
@@ -178,10 +177,6 @@ MainPreLevel:
 	call	DefCoords			; default ball and bat coords
 	clr	KeyCurrent			; clear keys just in case
 	call	DrawBackground			; draw some background things (score, level, lives)
-	clr	ChangedBat0			; just in case clear all changed
-	clr	ChangedBat1
-	clr	ChangedSpr0
-	clr	ChangedSpr1
 	inc	CurrentMode
 	return
 
@@ -226,14 +221,17 @@ MainLevel:
 	call	LOSTDO				; lost state processing
 	call	PrepareKey			; put something to key from joystick 
 	call	BATDO				; process bat
+	call	BatBossProc			; process boss bat
 	call	NPCDO				; process npc
 	call	NPCSPA				; spawn npc
 	call	BALLDO				; process ball moving
 	; sprites & tiles
 	call	RestoreBat			; restore (xor) previous bat
+	call	RestoreBossBat			; restore (xor) previous boss bat
 	call	RestoreChanged			; restore (xor) previous sprites
 	call	KeffProcess			; change background
 	call	DrawBat				; draw the bat
+	call	DrawBossBat			; draw boss bat
 	call	DrawBall			; draw ball
 	call	DrawNpc				; draw npc	
 	return
@@ -256,10 +254,6 @@ MainLiveLost:
 	call	DefCoords
 	clr	KeyCurrent
 	call	DrawBackground
-	clr	ChangedBat0
-	clr	ChangedBat1
-	clr	ChangedSpr0
-	clr	ChangedSpr1
 	mov	#C_MODE_PLAY, CurrentMode
 	return
 
@@ -275,10 +269,11 @@ MainGameOver:
 	mov	#1, R0
 	call	MusicInit
 	mov	#10., MusicDelay			; delay a bit
-	mov	#150., R3				; wait 3 sec
+	mov	#150., 20$+2				; wait 3 sec
 10$:	call	WaitVsync
 	call	MusicPlay
-	sob	R3, 10$
+20$:	dec	#150.
+	bne	10$
 	; mode to reset
 	call	MusicMute
 	mov	#C_MODE_RESET, CurrentMode
@@ -301,8 +296,8 @@ ChangedCur:	.word	ChangedSpr0
 ChangedBat:	.word	ChangedBat0
 ChangedSpr0:	.blkw	8.*4				; 8. sprites max to draw (!)
 ChangedSpr1:	.blkw	8.*4				; banks, source, dest, DY
-ChangedBat0:	.blkw	2				; bat vaddr, bat DY
-ChangedBat1:	.blkw	2
+ChangedBat0:	.blkw	4				; bat vaddr, bat DY (and same for boss bat)
+ChangedBat1:	.blkw	4
 
 CurrentMode:	.word	0
 FrameCount:	.word	0
@@ -857,9 +852,61 @@ DrawBat:
 	call	DrawPreSprite
 99$:	return
 
+
+; boss bat draw
+DrawBossBat:
+	tst	BossFight
+	beq	99$
+	tst	BatBossDY
+	ble	99$
+	mov	BatBossY, R2			; float Y
+	clrb	R2				; to .000
+	clc
+	ror	R2
+	asr	R2				; Y (pix) * 64.
+	add	#C_FIELD_Y*C_SCRWID+C_BATBOSSX_WORD+C_VADDR, R2	; R2 - Vaddr
+	; need to save
+	mov	ChangedBat, R5
+	add	#4, R5				; save after main bat
+	mov	R2, (R5)+
+	mov	BatBossDY, (R5)+
+	; draw it from center
+	mov	#C_SCRWID, R1
+	mov	#^B1100111111111111, R0
+	xor	R0, (R2)
+	mov	R2, R4
+	sub	R1, R2
+	add	R1, R4
+	mov	BatBossDY, R3
+20$:	xor	R0, (R2)
+	xor	R0, (R4)
+	sub	R1, R2
+	add	R1, R4
+	sob	R3, 20$
+	sub	R1, R2
+	add	R1, R4
+	mov	#^B0011001111111100, R0		; tails
+	xor	R0, (R2)
+	xor	R0, (R4)
+99$:	return
+
+
 ; bat restore
 RestoreBat:
 	mov	ChangedBat, R5
+	jmp	RestoreBatAny
+
+; boss bat restore if any
+RestoreBossBat:
+	tst	BossFight
+	bne	10$
+	return
+10$:	mov	ChangedBat, R5
+	add	#4, R5
+	jmp	RestoreBatAny
+
+; restore bat from R5 changed bat addr
+RestoreBatAny:
 	mov	(R5), R2			; .. bat vaddr
 	beq	99$
 	clr	(R5)+				; clear it immediately (says that bat is restored)
@@ -1170,6 +1217,7 @@ MenuBallProc:
 ; //////////////////////////////////////////////////////////////////////////////
 
 MusicDelay:	.word	0
+MusicEnd = 100014
 
 MusicInit:
 	mov	#C_RAM_BANKS17, @#177716
@@ -1179,18 +1227,20 @@ MusicInit:
 	return
 
 MusicPlay:
+	tst	MusicEnd
+	bne	99$
 	tst	MusicDelay
 	bmi	10$
 	dec	MusicDelay
 	return
 10$:	mov	#C_RAM_BANKS17, @#177716
-	call	@#100002
+	call	@#100004
 	mov	#C_RAM_BANKS15, @#177716
-	return
+99$:	return
 
 MusicMute:
 	mov	#C_RAM_BANKS17, @#177716
-	jmp	@#100004
+	call	@#100010
 	mov	#C_RAM_BANKS15, @#177716
 	return
 
@@ -1231,7 +1281,12 @@ LevelIntro:
 
 ; load level, LEVEL - num
 LoadLevel:
-	; clear npc spawn pool, 14. npc's spawn pools
+	; boss fight?
+	clr	BossFight
+	cmp	Level, #C_LEVEL_MAX
+	bne	10$
+	inc	BossFight
+10$:	; clear npc spawn pool, 14. npc's spawn pools
 	mov	#NPSPAT, R0
 	mov	#14., R3
 	clr	(R0)+
@@ -1326,8 +1381,12 @@ ULevelAdj:
 	mov	#LevWLeft, R0
 	mov	#16.+LevelC, R1
 	mov	#10., R3
-30$:	movb	(R0)+, (R1)
-	clrb	15.(R1)
+30$:	tst	BossFight
+	bne	32$
+	movb	(R0)+, (R1)
+	br	34$
+32$:	clrb	(R1)
+34$:	clrb	15.(R1)
 	add	#16., R1
 	sob	R3, 30$
 	; top/bottom borders
@@ -1355,9 +1414,10 @@ AddToPowerC:
 
 ; right wall create
 RWallCreate:	
-	mov	#LevelC+16., R4
+	mov	#LevWLeft, R0
+	mov	#LevelC+16.+15., R4
 	mov	#10., R3
-10$:	movb	(R4), 15.(R4)
+10$:	movb	(R0)+, (R4)
 	add	#16., R4
 	sob	R3, 10$
 	return
@@ -1372,16 +1432,29 @@ DefCoords:
 	clr	BatSub				; submode
 	clr	BatPRZ				; paralyzation counter
 	call	BatVelInit			; init bat velocities
-	; ball
+	; boss bat
+	tst	BossFight
+	beq	10$
+	mov	BatY, BatBossY
+	sub	#256., BatBossY			; correct a bit
+	mov	#8., BatBossDY
+10$:	; ball
 	mov	#60., BallAngle			; angle to the left and a bit down
 	mov	#C_BALLVEL_MIN, BallVel
 	mov	#12., BallBat			; position in a bat
 	call	BalGlu
-	;movb	#1, BallSuper
 	clrb	BallSuper
 	clrb	BallSuperCnt
 	; other
 	clrb	LostCounter			; we are alive
+	; clear changed bats
+	mov	#ChangedBat0, R0
+	mov	#8., R3
+	clr	(R0)+
+	sob	R3, .-2
+	; and changed spr
+	clr	ChangedSpr0
+	clr	ChangedSpr1
 	return
 
 
@@ -1600,6 +1673,8 @@ KeffProcess:
 TestLevelEnd:
 	bit	#^B111111, FrameCount		; once in 64 frames
 	bne	99$
+	tst	BossFight
+	bne	99$
 	; now check field
 	mov	#LevelC, R5
 	mov	#192., R3
@@ -1717,6 +1792,7 @@ BALLDO:	tstb	LostCounter
 	mov	BallAngle, Angle0
 	call	ClrNor
 	call	BatCol
+	call	BatBossCol
 	call	AngCor
 	mov	Angle0, BallAngle
 99$:	return
@@ -1804,6 +1880,9 @@ BALINC:	inc	BallVelInc
 BatY:		.word	96.*256.		; bat Y-coord (float pixels)
 BatDY:		.word	8.			; bat height (pixels)
 
+BatBossY:	.word	96.*256.
+BatBossDY:	.word	8.
+
 BatVel:		.word	1*256.			; velocity (float)
 BatDVel:	.word	64.			; velocity increase (float)
 
@@ -1818,7 +1897,8 @@ BatDoT:		.word	0, BATDO1, BATDO2, BATDO3, BATDO4, BATDO5, BATDO6
 ; bat lost
 BATDO1:	bit	#1., FrameCount		; every 2 frames
 	bne	9$
-	dec	BATDY
+	dec	BatBossDY
+	dec	BatDY
 	bne	9$
 	clr	BatMode
 9$:	return
@@ -1970,7 +2050,7 @@ BatCheckInter:
 
 
 ; bat vs ball collision processing
-BATCOL:	tst	BatMode				; bat is lost?
+BatCol:	tst	BatMode				; bat is lost?
 	beq	99$
 	call	GLUTST				; if glued - don't check
 	bcs	99$
@@ -2100,7 +2180,75 @@ GLUTST:	cmp	BatMode, #2.			; glued from start mode
 14$:	sec	
 	return
 
-	
+
+; boss bat procedure
+; homing on ball and that's all
+BatBossProc:
+	tst	BossFight
+	beq	99$
+	; move after ball
+	mov	BallY, R0
+	add	#10.*256, R0				; R0 - ball (not) center (float)
+	sub	BatBossY, R0
+	asr	R0
+	asr	R0
+	asr	R0
+	add	R0, BatBossY
+	; correct boss bat coords
+	mov	BatBossDY, R1
+	swab	R1
+	mov	BatBossY, R0
+	sub	R1, R0
+	cmp	R0, #18.*256.
+	bhi	80$
+	mov	#18.*256., BatBossY
+	add	R1, BatBossY
+	br	99$
+80$:	mov	BatBossY, R0
+	add	R1, R0
+	cmp	R0, #173.*256.
+	blo	99$
+	mov	#173.*256., BatBossY
+	sub	R1, BatBossY
+99$:	return
+
+
+; ball vs boss bat collision
+BatBossCol:
+	tst	BossFight
+	beq	99$
+	; fast check bat collision
+	cmp	TempX, #C_BATBOSSX_PIX+8.
+	bhi	99$
+	; continue with usual checks
+	mov	#C_BATBOSSX_PIX, R1
+	mov	R1, R2
+	add	#7., R2				; R1 = X1, R2 = X2
+	mov	BatBossY, R3
+	clrb	R3
+	swab	R3
+	mov	R3, R4
+	mov	BatBossDY, R5
+	add	#4, R5				; add some to bat length
+	sub	R5, R3
+	add	R5, R4				; R3 = Y1, R4 = Y2
+	; check 'going left' collision	
+	tstb	GoingLeft
+	beq	99$
+	mov	TempX, R0
+	mov	TempY, R5
+	add	#2., R0
+	add	#8., R5
+	call	BatCheckInter
+	bcc	99$
+	; collided with right side, R0 = position in bat
+	movb	BNorT3(R0), R0			; use bat normals without retraction
+	bic	#^B1111111110000000, R0	
+	mov	R0, Angle0
+	mov	#1, SoundNum
+99$:	return
+
+
 ; //////////////////////////////////////////////////////////////////////////////
 ; // MOVEMENT
 ; //////////////////////////////////////////////////////////////////////////////	
@@ -3176,6 +3324,7 @@ Lives:		.word	20
 Score:		.word	0
 UseCheat:	.word	0
 SpawnSpeed:	.word	100			; npc spawn speed
+BossFight:	.word	0
 
 RightWall:	.byte	0			; right wall presence
 LostCounter:	.byte	0			; are we dying? (counter 1..150 or so)
@@ -3203,6 +3352,14 @@ BNorT2:		.byte	85, 83, 81, 79, 77, 75, 74, 73, 72, 71
 		.byte	43, 43, 43
 		.even
 
+; boss bat deflections
+BNorT3:		.byte	104, 108, 111, 114, 117, 119, 121, 122, 123, 124, 125, 126
+		.byte	0  ; center
+		.byte	0, 1, 2, 3, 4, 5, 7, 9, 11, 13, 16, 19
+		.byte	21, 21, 21 
+		.even
+
+
 ; npc maximal count
 NpcCnm:		.byte	0, 2, 1, 1, 2, 1, 2, 4, 0, 0
 		.even
@@ -3227,7 +3384,7 @@ KeffTblDisso:	.byte	30., 30., 31., 31., 32., 32., 33., 33., 34., 34., 35., 35., 
 
 ; levels addr
 LEVTBL:	.word	LEVF00, LEVF01, LEVF02, LEVF03, LEVF04, LEVF05, LEVF06, LEVF07, LEVF08, LEVF09
-	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16, LEVF17, LEVF18
+	.word	LEVF10, LEVF11, LEVF12, LEVF13, LEVF14, LEVF15, LEVF16, LEVF17, LEVF18, LEVF19
 
 
 ; upper/lower/left bytes for level walls
@@ -3537,6 +3694,21 @@ LEVF18:
 	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 @packend
 
+	.asciz	<0>"BOSS FIGHT"
+LEVF19:
+@packstart10
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+	.byte	  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+@packend
+
 
 ; blocks power (3 - unbreakable)
 BGOPWR:		.byte	0, 1, 1, 1, 1, 1, 2, 3, 1, 1	; 00..09
@@ -3647,7 +3819,7 @@ Str013:		.asciz	<1>"SCORE"
 Str012:		.asciz	<1>"LEVEL"
 StrOver:	.asciz	"GAME OVER"
 StrScroll:	.ascii	"KRAKOUT FOR BK0011M BY BLAIRE CAS=  ORIGINAL\ SINCLAIR ZX SPECTRUM GAME:;<C> GREMLIN GRAPHICS 1987=  "
-		.ascii	"THANKS\ GID[ SANDRO <EMULATORS>[ REDDIE <ZX0 UNPACK>[ EINAR SAUKAS <ZX0 PACK>[ MANWE <BIN2WAV>=== AND ALL FROM BK COMMUNITY=  "
+		.ascii	"THANKS\ GID[ SANDRO <EMULATORS>[ REDDIE <MUSIC[ZX0 UNPACK>[ KUVO <PT3 PLAYER>[ MANWE <BIN2WAV>=== AND ALL FROM BK COMMUNITY=  "
 		.asciz	"                             "
 		.even
 

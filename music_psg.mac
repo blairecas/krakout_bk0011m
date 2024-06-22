@@ -1,0 +1,139 @@
+	.title	CPU
+	.enabl	LC, AMA
+	.asect
+	.=100000
+
+
+Start:	jmp	InitMusic
+	jmp	PlayMusic
+	jmp	MuteMusic
+
+
+; R0 = song ID
+; trashes R5 (!)
+InitMusic:
+	call	MuteMusic
+	asl	R0
+	asl	R0
+	asl	R0
+	mov	#PsgParams, R5
+	call	80$
+	add	#8., R5
+	add	#4., R0
+80$:	mov	MusicTable(R0), C_PSG_CURADDR(R5)
+	beq	99$
+	add	#16., C_PSG_CURADDR(R5)				; skip psg header
+	mov	MusicTable+2(R0), C_PSG_ENDADDR(R5)
+	inc	C_PSG_PLAYING(R5)
+99$:	return
+
+
+; mute AY device(s) and clear params
+MuteMusic:
+	mov	#PsgParams, R5
+	mov	#255., @#177714
+	mov	#100000, MuteA2+2
+	call	MuteAY
+	add	#8., R5
+	mov	#254., @#177714
+	mov	#040000, MuteA2+2
+
+
+; mute one AY (AY# must be set previously correctly)
+MuteAY: clr	C_PSG_PLAYING(R5)
+	clr	C_PSG_SKIPFRA(R5)
+	mov	#177714, R0
+	mov	#13., R1
+MuteA1:	mov	R1, R2
+MuteA2:	bis	#000000, R2
+	com	R2
+	mov	R2, (R0)
+	clrb	(R0)
+	dec	R1
+	bpl	MuteA1
+	return
+
+
+; call this every frame
+PlayMusic:
+	mov	R0, -(SP)
+	mov	R1, -(SP)
+	mov	R2, -(SP)
+	mov	R5, -(SP)
+	call	40$
+	mov	(SP)+, R5
+	mov	(SP)+, R2
+	mov	(SP)+, R1
+	mov	(SP)+, R0
+	return
+	; play AY routine 2 times
+40$:	mov	#PsgParams, R5
+	mov	#255., @#177714				; set 1st AY for turbosound
+	mov	#100000, 80$+2				; set 1st AY mask for gryphonsound
+	mov	#100000, MuteA2+2			; set 1st AY mask for muting gryphonsound
+	call	50$
+	add	#8., R5					; set params to 2nd AY
+	mov	#254., @#177714				; set 2nd AY for turbosound
+	mov	#040000, 80$+2				; set 2nd AY mask for gryphonsound
+	mov	#040000, MuteA2+2			; set 2nd AY mask for muting gryphonsound
+	; play once
+50$:	tst	C_PSG_PLAYING(R5)
+	beq	99$
+	tst	C_PSG_SKIPFRA(R5)
+	beq	60$
+	dec	C_PSG_SKIPFRA(R5)
+	return
+60$:	mov	C_PSG_CURADDR(R5), R1
+70$:	cmp	R1, C_PSG_ENDADDR(R5)
+	bhis	MuteAY
+	movb	(R1)+, R0
+	cmpb	R0, #377
+	beq	90$
+	cmpb	R0, #376
+	bne	80$
+	clr	C_PSG_SKIPFRA(R5)
+	movb	(R1)+, C_PSG_SKIPFRA(R5)
+	asl	C_PSG_SKIPFRA(R5)
+	asl	C_PSG_SKIPFRA(R5)
+	br	90$
+80$:	bis	#000000, R0
+	com	R0
+	mov	R0, @#177714
+	movb	(R1)+, R0
+	com	R0
+	movb	R0, @#177714
+	br	70$
+90$:	mov	R1, C_PSG_CURADDR(R5)
+99$:	return
+
+
+; /////////////////////////////////////////////////////////////////
+; // Data
+; /////////////////////////////////////////////////////////////////
+
+C_PSG_PLAYING = 0
+C_PSG_SKIPFRA = 2
+C_PSG_CURADDR = 4
+C_PSG_ENDADDR = 6
+
+PsgParams:	.blkw	4*2
+
+MusicTable:	.word	Song01, Song01End, Song02, Song02End, 
+		.word	Song11, Song11End, 0, 0
+
+; menu music #1 AY
+Song01:
+@includebin ./music/krak00.1.psg
+Song01End:
+
+; menu music #2 AY
+Song02:
+@includebin ./music/krak00.2.psg
+Song02End:
+
+; game over music #1 AY
+Song11:
+@includebin ./music/over.psg
+Song11End:
+
+	.end	Start
