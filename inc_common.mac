@@ -54,6 +54,7 @@ C_MODE_PLAY	= 4.
 C_MODE_LEVEND	= 5.
 C_MODE_LOST	= 6.
 C_MODE_OVER	= 7.
+C_MODE_WIN	= 8.
 
 ; logic
 C_BATVEL_MIN	= 1*256.

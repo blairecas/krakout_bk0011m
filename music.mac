@@ -7,6 +7,11 @@ Start:	jmp	Init				; 100000
 	jmp	Mute				; 100010
 	.word	END_OF_PT3FILE			; 100014
 
+; helper function to detect @#4 int (bad register)
+StopDetect:
+	inc	R0
+	rti
+
 ; Based on:
 ; CSI MultiPlayer 3 for CSIDOS by KUVO
 ; https://csi.pdp-11.ru/
@@ -128,10 +133,25 @@ TS_ID_CHECK:
 11$:	return
 
 ; Initialization of pt3 module 
+; R0 = song #
+; R1 = 0 - repeat, 1 - no repeat
 Init:	asl	R0
 	asl	R0
 	mov	MusicTable(R0), PT3FILE_MODULE1_ADDR
 	mov	MusicTable+2(R0), PT3FILE_END_ADDR
+	mov	R1, NO_REPEAT_MODE
+
+; AZ device detect start
+	mov	@#4, -(SP)
+	mov	#StopDetect, @#4
+	clr	R0
+	movb	R0, @#AY_1_PORT_AZBK
+	mov	(SP)+, @#4
+	tst	R0
+	bne	10$
+	mov	#240, REG_OUT_DEVICE_MANAGE 	; NOP code = 240
+10$:
+; AZ device detect ends here
 
 	clr	TS_PRESENT
 	clr	SEL_DEVICE
@@ -140,7 +160,7 @@ Init:	asl	R0
 	clr	PT3FILE_MODULE2_ADDR
 	clr	REPETITION_NUMBER
 
-	mov	#PARAM_DEVICES_AY1, R3
+	mov	#PARAM_DEVICES_AY1, R3	
 	clr	(R3)+				; legacy #1
 	mov	#100000, (R3)+			; gsound #1
 	mov	#AY_1_PORT_AZBK, (R3)+		; AZBK #1
@@ -162,6 +182,7 @@ TS_DETECT:
 	call	TS_ID_CHECK
 	bne	INIT_NEXT
 
+	; have TS
 	inc	TS_PRESENT
 
 	mov	R5, -(SP)
@@ -410,17 +431,16 @@ PLAY_NEXT:
  	bne	11$
 	clrb	PARAM_NOISE_BASE(R4)
  	mov	PARAM_CURRENTPOSITION(R4), R0
- 	inc	R0
- 	movb	(R0), R1
+ 	inc	R0						; R0 addr in patterns list
+ 	movb	(R0), R1					; R1 pattern #
 
  	cmpb	#377, R1
  	bne	10$
 
-	inc	END_OF_PT3FILE
-	
  	tst	NO_REPEAT_MODE
  	beq	100$
 
+	inc	END_OF_PT3FILE					; originally sets before testing for repeat	
 	incb	PARAM_DELAYCOUNTER(R4)
 	incb	PARAM_CHANNEL_A + CHP_NOTE_SKIP_COUNTER(R4)
 	jmp	Mute
@@ -511,11 +531,29 @@ PLAY_NEXT:
 REG_OUT:
 	mov	CUR_PARAMS_ADDR, R0			; params addr where -2 word have our AY device address
 	mov	R0, R4					; skip to AY actual registers bytes
-	tst	-(R0)
+	mov	-(R0), AY_PORT_AZBK+2
 	mov	-(R0), GS_SELECTOR
 	mov	-(R0), TS_SELECTOR
 	add	#PARAM_AYREGS+AY_ENVELOPETYPE, R4
 
+REG_OUT_DEVICE_MANAGE:
+	br	LEGACY_REG_OUT
+
+AY_PORT_AZBK:	
+	mov	#000000, R5
+	mov	#15, R1
+	movb	(R4), R0
+	bmi	10$
+	movb	R1, (R5)
+	movb	R0, 1(R5)
+10$: 	dec	R1
+	bmi	11$
+	movb	R1, (R5)
+	movb	-(R4), 1(R5)
+	br	10$
+11$:	return
+
+LEGACY_REG_OUT:
 	mov	#177714, R5
 	mov	(PC)+, (R5)
 TS_SELECTOR:	.word	0
@@ -1087,13 +1125,18 @@ PARAMETERS_AY2:
 MusicTable:
 	.word	M_Menu, M_MenuEnd
 	.word	M_Over, M_OverEnd
+	.word	M_Win, M_WinEnd
 
 M_Menu:
-	@includebin ./music/krakout_ts2.pt3
+	@includebin ./music/krakout_menu.pt3
 M_MenuEnd:
 
 M_Over:
-	@includebin ./music/over.pt3
+	@includebin ./music/krakout_over.pt3
 M_OverEnd:
+
+M_Win:
+	@includebin ./music/krakout_win.pt3
+M_WinEnd:
 
 	.end Start
