@@ -306,9 +306,12 @@ MainGameWin:
 	mov	#10., MusicDelay
 	clr	KeyCurrent
 	mov	#WinAnimData, WinAnimAddr
+	call	StarsAnimPrep
 10$:	call	WaitVsync
 	call	WinAnimTick
+	call	StarsAnimTick
 	call	MusicPlay
+	inc	FrameCount
 	tst	KeyCurrent
 	beq	10$
 	; mode to reset
@@ -393,6 +396,22 @@ SwitchBuffers:
 	return
 
 
+; R0 - 16x16 kub number on screen
+; return: R0 - vaddr (without 40000 or 100000)
+VramFromKSaddr:
+	mov	R0, R1
+	bic	#^B00001111, R0			; Y part (upper 4 bits)
+	swab	R0
+	clc	
+	ror	R0
+	asr	R0				; R0 = Y*64*16
+	bic	#^B11110000, R1			; X part
+	asl	R1
+	asl	R1				; R1 = X*4 (4 byte)
+	add	R1, R0
+	return
+
+
 ; duplicate screens 6 -> 5
 DuplicateScreen:
 	mov	#C_SCRWID-4, R2
@@ -403,16 +422,7 @@ DuplicateScreen:
 	clr	R0				; and now last zero kub (Galois LFSR can't use 0)
 50$:	; mov kub by R0
 	mov	#C_RAM_BANKS56, @#177716
-	mov	R0, R1
-	bic	#^B00001111, R0
-	swab	R0
-	clc	
-	ror	R0
-	asr	R0
-	bic	#^B11110000, R1
-	asl	R1
-	asl	R1
-	add	R1, R0
+	call	VramFromKSaddr
 	mov	R0, R1
 	add	#40000, R0
 	add	#100000, R1
@@ -557,7 +567,7 @@ PrintDecimal2:
 SprBankTable:	.blkw	C_SPR_MAX
 
 ; preshift all sprites
-; will use banks 2,3,4 of RAM, every bank can hold 20. preshifted 16x16 sprites
+; will use banks 2,3,4 of RAM, every bank can hold ~20. preshifted 16x16 sprites
 ; at start of bank will be offsets of preshifted base from 40000
 PreshiftAll:
 	; clear RAM banks sprites table
@@ -613,8 +623,8 @@ PreshiftAll:
 	blo	50$
 	; increase bank #, check and cycle
 	inc	6(SP)				; increase bank ID
-	cmp	6(SP), #C_RAM_7			; max bank ID?
-	blos	10$
+	cmp	6(SP), #C_RAM_7			; max bank ID? (#7 is used for music)
+	blo	10$
 90$:	; restore SP, default RAM banks and return
 	add	#10., SP
 	mov	#C_RAM_BANKS16, @#177716
@@ -738,20 +748,12 @@ DrawPreSprite:
 	mov	R5, ChangedCur			; store current 'changed' addr
 	return 
 
-; just mov preshifted sprite to buf-5 vram without C_FIELD_Y addition and saving coords
-; add some zeroes above and under
-; only used for ball in menu
-DrawPreSprite5:
-	asl	R0				; sprite ID * 2 (to word)
-	; switch to sprite RAM bank and get sprite base addr
-	mov	#C_RAM_BANKS15, R3
-	bis	SprBankTable(R0), R3
-	mov	R3, @#177716			; set sprite bank to 40000
-	mov	40000(R0), R0			; R0 - base spr addr 
-	add	(R0)+, R2			; Y addition
-	dec	R2
-	dec	R2
-	mov	(R0)+, R4			; R4 = DY
+
+; compute vaddr from R1=X, R2=Y
+; also set shift addition
+; R0=preshifted base spr addr, R1=X, R2=Y, R4=DY
+; return R2 - vaddr, R0 - spr source addr
+PreCompVaddr:
 	; compute vaddr
 	swab	R2
 	clc
@@ -775,6 +777,24 @@ DrawPreSprite5:
 	asl	R1
 	add	R3, R1
 	add	PreshiftOfs(R1), R0		; R0 - source addr
+	return
+
+; just mov preshifted sprite to buf-5 vram without C_FIELD_Y addition and saving coords
+; add some zeroes above and under
+; only used for ball in menu
+DrawPreSprite5:
+	asl	R0				; sprite ID * 2 (to word)
+	; switch to sprite RAM bank and get sprite base addr
+	mov	#C_RAM_BANKS15, R3
+	bis	SprBankTable(R0), R3
+	mov	R3, @#177716			; set sprite bank to 40000
+	mov	40000(R0), R0			; R0 - base spr addr 
+	add	(R0)+, R2			; Y addition
+	dec	R2
+	dec	R2
+	mov	(R0)+, R4			; R4 = DY
+	; get R2-vaddr, R0-source spr addr
+	call	PreCompVaddr
 	; sprite
 	mov	#C_SCRWID-4, R1
 	clr	(R2)+
@@ -811,29 +831,8 @@ DrawPreSprite51:
 	mov	40000(R0), R0
 	add	(R0)+, R2
 	mov	(R0)+, R4
-	; compute vaddr
-	swab	R2
-	clc
-	ror	R2
-	asr	R2
-	mov	R1, R3
-	asr	R3
-	asr	R3
-	asr	R3
-	asl	R3
-	add	R3, R2
-	add	#C_VADDR, R2
-	; shift addition to sprite addr
-	mov	R4, R3
-	dec	R3
-	asl	R3
-	asl	R3
-	asl	R3
-	asl	R3
-	bic	#^B1111111111111000, R1
-	asl	R1
-	add	R3, R1
-	add	PreshiftOfs(R1), R0
+	; get R2-vaddr, R0-source spr addr
+	call	PreCompVaddr
 	; sprite
 	mov	#C_SCRWID-4, R1
 10$:	mov	(R0)+, R3
@@ -1338,8 +1337,78 @@ MusicMute:
 
 ; screen must be set to 5th
 
-StarsAnimTick:
+StarsDelay:	.word	0
+StarsTTable:	.byte	67., 68., 69., 68., 67., 0
 
+; stars random
+; must be 1..255 without central square
+; (safe to use R4)
+StarsRandom:
+	call	Galois8bit
+	mov	R0, R4
+	bic	#^B1111111111110000, R4			; X
+	cmp	R4, #5.
+	blos	10$
+	cmp	R4, #15.-5.
+	bhis	10$
+	br	StarsRandom
+10$:	mov	R0, R4
+	asr	R4
+	asr	R4
+	asr	R4
+	asr	R4
+	cmp	R4, #5.
+	blos	20$
+	cmp	R4, #15.-3.
+	bhis	20$
+	br	StarsRandom
+20$:	return
+
+; stars prepare, using level data as buffer for coords and idx-es
+; 6 'stars' with tiles #67, 68, 69
+StarsAnimPrep:
+	mov	#800., StarsDelay
+	mov	#LevelC, R5
+	clr	R1
+	mov	#6, R3
+10$:	call	StarsRandom				; R0 - 1..255
+	mov	R0, (R5)+				; KSaddr
+	mov	R1, (R5)+				; R1 - tile idx
+	inc	R1
+	sob	R3, 10$
+	return
+
+; 'stars' animation 
+StarsAnimTick:
+	; wait some for stars to start	
+	dec	StarsDelay
+	bpl	99$
+	clr	StarsDelay
+	bit	#^B111, FrameCount
+	bne	99$
+	mov	#LevelC, R2
+	mov	#6, R3
+10$:	mov	(R2)+, R0				; R0 - KSaddr
+	call	VramFromKSaddr
+	mov	R0, R5
+	add	#100000, R5				; R5 - vram (100000)
+	mov	(R2), R0				; tile table index
+	inc	(R2)+					; increase it
+	movb	StarsTTable(R0), R0			; tile #
+	mov	R0, -(SP)
+	mov	R2, -(SP)
+	mov	R3, -(SP)	
+	call	DrawTile
+	mov	(SP)+, R3
+	mov	(SP)+, R2
+	mov	(SP)+, R0
+	bne	20$					; still have something to draw?
+	; set new 'star'
+	clr	-2(R2)					; clear index
+	call	StarsRandom
+	mov	R0, -4(R2)
+20$:	sob	R3, 10$
+99$:	return
 
 
 WinAnimAddr:	.word	0
