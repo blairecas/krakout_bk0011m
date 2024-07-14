@@ -133,6 +133,7 @@ MainMenu:
 10$:	cmp	KeyCurrent, #C_KEY_1
 	bne	20$
 	clr	KeyCurrent
+	call	MusicMute
 	jmp	JoySetup
 20$:	cmp	KeyCurrent, #C_KEY_2
 	bne	30$
@@ -1336,6 +1337,10 @@ MusicMute:
 ; //////////////////////////////////////////////////////////////////////////////
 
 ; screen must be set to 5th
+
+StarsAnimTick:
+
+
 
 WinAnimAddr:	.word	0
 
