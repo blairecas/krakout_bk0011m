@@ -127,6 +127,7 @@ MainMenu:
 	cmp	KeyCurrent, #C_KEY_SPACE
 	bne	10$
 	clr	KeyCurrent
+	call	MusicMute
 	inc	CurrentMode
 	return
 10$:	cmp	KeyCurrent, #C_KEY_1
@@ -161,11 +162,12 @@ MainMenu:
 
 ; 02 - global prepare play
 MainPrepare:
-	call	MusicMute
 	clr	Level
 	clr	Score
 	mov	#20., Lives
 	inc	CurrentMode
+; DEBUG
+;	mov	#C_MODE_WIN, CurrentMode
 	return
 
 
@@ -302,7 +304,9 @@ MainGameWin:
 	call	MusicInit
 	mov	#10., MusicDelay
 	clr	KeyCurrent
+	mov	#WinAnimData, WinAnimAddr
 10$:	call	WaitVsync
+	call	WinAnimTick
 	call	MusicPlay
 	tst	KeyCurrent
 	beq	10$
@@ -735,6 +739,7 @@ DrawPreSprite:
 
 ; just mov preshifted sprite to buf-5 vram without C_FIELD_Y addition and saving coords
 ; add some zeroes above and under
+; only used for ball in menu
 DrawPreSprite5:
 	asl	R0				; sprite ID * 2 (to word)
 	; switch to sprite RAM bank and get sprite base addr
@@ -793,6 +798,54 @@ DrawPreSprite5:
 	clr	(R2)
 	mov	#C_RAM_BANKS15, @#177716
 	return 
+
+
+; xor preshifted to buf 5
+; only used in animation
+DrawPreSprite51:
+	asl	R0
+	mov	#C_RAM_BANKS15, R3
+	bis	SprBankTable(R0), R3
+	mov	R3, @#177716
+	mov	40000(R0), R0
+	add	(R0)+, R2
+	mov	(R0)+, R4
+	; compute vaddr
+	swab	R2
+	clc
+	ror	R2
+	asr	R2
+	mov	R1, R3
+	asr	R3
+	asr	R3
+	asr	R3
+	asl	R3
+	add	R3, R2
+	add	#C_VADDR, R2
+	; shift addition to sprite addr
+	mov	R4, R3
+	dec	R3
+	asl	R3
+	asl	R3
+	asl	R3
+	asl	R3
+	bic	#^B1111111111111000, R1
+	asl	R1
+	add	R3, R1
+	add	PreshiftOfs(R1), R0
+	; sprite
+	mov	#C_SCRWID-4, R1
+10$:	mov	(R0)+, R3
+	xor	R3, (R2)+
+	mov	(R0)+, R3
+	xor	R3, (R2)+
+	mov	(R0)+, R3
+	xor	R3, (R2)
+	add	R1, R2
+	sob	R4, 10$
+	mov	#C_RAM_BANKS15, @#177716
+	return 
+
 
 ; draw one block R5 - k-addr
 ; do not modify R3, R4, R5
@@ -1282,6 +1335,153 @@ MusicMute:
 ; // Win animation related
 ; //////////////////////////////////////////////////////////////////////////////
 
+; screen must be set to 5th
+
+WinAnimAddr:	.word	0
+
+WinAnimTick:
+10$:	clr	R0
+	bisb	@WinAnimAddr, R0		; get command
+	inc	WinAnimAddr
+	; wait for vsync
+	cmpb	R0, #10.
+	bne	20$
+	return
+20$:	; loop
+	cmpb	R0, #11.
+	bne	30$
+	clr	R0
+	bisb	@WinAnimAddr, R0
+	inc	WinAnimAddr
+	swab	R0
+	bisb	@WinAnimAddr, R0
+	mov	R0, WinAnimAddr
+	br	10$
+30$:	; spr xor
+	clr	R1
+	bisb	@WinAnimAddr, R1		; X
+	inc	WinAnimAddr
+	clr	R2
+	bisb	@WinAnimAddr, R2		; Y
+	inc	WinAnimAddr
+	call	DrawPreSprite51			; xor sprite to bank-5
+	br	10$
+
+; [spr#,x,y] or [10.-wait] or [11.,adrh,adrl-loop]
+; 
+C_ANYY = 160.
+C_ANYX = 84.
+
+.radix 10
+WinAnimData:	.byte	56,C_ANYX-16,C_ANYY, 55,C_ANYX,C_ANYY, 56,C_ANYX+16,C_ANYY, 54,C_ANYX+32,C_ANYY, 55,C_ANYX+48,C_ANYY, 56,C_ANYX+64,C_ANYY, 55,C_ANYX+80,C_ANYY
+		.byte	6,C_ANYX+10,C_ANYY+1			; pot #6 on
+		.byte	10
+
+		.byte	00, C_ANYX+86,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	00, C_ANYX+86,C_ANYY+1
+		.byte	27, C_ANYX+84,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	27, C_ANYX+84,C_ANYY+1
+		.byte	28, C_ANYX+82,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	28, C_ANYX+82,C_ANYY+1
+		.byte	29, C_ANYX+80,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	29, C_ANYX+80,C_ANYY+1
+		.byte	00, C_ANYX+78,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	00, C_ANYX+78,C_ANYY+1
+		.byte	27, C_ANYX+76,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	27, C_ANYX+76,C_ANYY+1
+		.byte	28, C_ANYX+74,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	28, C_ANYX+74,C_ANYY+1
+		.byte	29, C_ANYX+72,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	29, C_ANYX+72,C_ANYY+1
+		.byte	00, C_ANYX+70,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	00, C_ANYX+70,C_ANYY+1
+		.byte	27, C_ANYX+68,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	27, C_ANYX+68,C_ANYY+1
+		.byte	28, C_ANYX+66,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	28, C_ANYX+66,C_ANYY+1
+		.byte	29, C_ANYX+64,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	29, C_ANYX+64,C_ANYY+1
+		.byte	00, C_ANYX+62,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	00, C_ANYX+62,C_ANYY+1
+		.byte	27, C_ANYX+60,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	27, C_ANYX+60,C_ANYY+1
+		.byte	28, C_ANYX+58,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	28, C_ANYX+58,C_ANYY+1
+		.byte	29, C_ANYX+56,C_ANYY+1
+		.byte	10, 10, 10, 10
+		.byte	29, C_ANYX+56,C_ANYY+1
+		.byte	26, C_ANYX+56,C_ANYY+1
+
+		.byte	10
+;		.byte	16,C_ANYX+46,C_ANYY-12			; heart #16 on
+		.byte	10, 10, 10
+WinAniLoop:
+		.byte	6,C_ANYX+10,C_ANYY+1			; pot #6 off
+		.byte	7,C_ANYX+10,C_ANYY+1			; pot #7 on
+		.byte	10
+		.byte	10, 10, 10
+
+		.byte	7,C_ANYX+10,C_ANYY+1			; pot #7 off
+		.byte	8,C_ANYX+10,C_ANYY+1			; pot #8 on
+		.byte	10
+		.byte	16,C_ANYX+46,C_ANYY-12			; heart #16 off
+		.byte	17,C_ANYX+46,C_ANYY-12			; heart #17 on
+		.byte	10, 10, 10
+
+		.byte	8,C_ANYX+10,C_ANYY+1			; pot #8 off
+		.byte	9,C_ANYX+10,C_ANYY+1			; pot #9 on
+		.byte	10
+		.byte	10, 10, 10
+
+		.byte	9,C_ANYX+10,C_ANYY+1			; pot #9 off
+		.byte	6,C_ANYX+10,C_ANYY+1			; pot #6 on
+		.byte	10
+		.byte	17,C_ANYX+46,C_ANYY-12			; heart #17 off
+;		.byte	18,C_ANYX+46,C_ANYY-12			; heart #18 on
+		.byte	10, 10, 10
+
+		.byte	6,C_ANYX+10,C_ANYY+1			; pot #6 off
+		.byte	7,C_ANYX+10,C_ANYY+1			; pot #7 on
+		.byte	10
+		.byte	10, 10, 10
+
+		.byte	7,C_ANYX+10,C_ANYY+1			; pot #7 off
+		.byte	8,C_ANYX+10,C_ANYY+1			; pot #8 on
+		.byte	10
+		.byte	18,C_ANYX+46,C_ANYY-12			; heart #18 off
+		.byte	19,C_ANYX+46,C_ANYY-12			; heart #19 on
+		.byte	10, 10, 10
+
+		.byte	8,C_ANYX+10,C_ANYY+1			; pot #8 off
+		.byte	9,C_ANYX+10,C_ANYY+1			; pot #9 on
+		.byte	10
+		.byte	10, 10, 10
+
+		.byte	9,C_ANYX+10,C_ANYY+1			; pot #9 off
+		.byte	6,C_ANYX+10,C_ANYY+1			; pot #6 on
+		.byte	10
+		.byte	19,C_ANYX+46,C_ANYY-12			; heart #19 off
+;		.byte	16,C_ANYX+46,C_ANYY-12			; heart #16 on
+		.byte	10, 10, 10
+
+		.byte	11, WinAniLoop/256, WinAniLoop&255
+		.even
+.radix 8
 
 ; //////////////////////////////////////////////////////////////////////////////
 ; // Logic
