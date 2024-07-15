@@ -1346,8 +1346,8 @@ StarsTTable:	.byte	67., 68., 69., 68., 67., 0
 StarsRandom:
 	call	Galois8bit
 	mov	R0, R4
-	bic	#^B1111111111110000, R4			; X
-	cmp	R4, #5.
+	bic	#^B1111111111110000, R4			; R4 - X
+	cmp	R4, #5.					; compare to boundaries
 	blos	10$
 	cmp	R4, #15.-5.
 	bhis	10$
@@ -1356,8 +1356,8 @@ StarsRandom:
 	asr	R4
 	asr	R4
 	asr	R4
-	asr	R4
-	cmp	R4, #5.
+	asr	R4					; R4 - Y
+	cmp	R4, #5.					;
 	blos	20$
 	cmp	R4, #15.-3.
 	bhis	20$

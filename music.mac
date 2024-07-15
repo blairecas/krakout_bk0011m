@@ -1128,7 +1128,7 @@ MusicTable:
 	.word	M_Win, M_WinEnd
 
 M_Menu:
-	@includebin ./music/krakout_menu.pt3
+	@includebin ./music/krakout_menu_2.pt3
 M_MenuEnd:
 
 M_Over:
