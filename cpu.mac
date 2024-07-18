@@ -123,6 +123,7 @@ MainMenu:
 	call	ScrollBottom
 	call	MenuBallProc
 	call	MusicPlay
+	call	PrepareKey			; put something to key from joystick 
 	; keys
 	cmp	KeyCurrent, #C_KEY_SPACE
 	bne	10$
