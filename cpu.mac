@@ -374,6 +374,7 @@ KbdInt:	mov	@#177662, KeyCurrent
 
 ; second keyboard int
 Kbd274Int:
+	tst	@#177662
 	rti
 
 ; wait for vsync proc
