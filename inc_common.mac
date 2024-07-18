@@ -36,6 +36,7 @@ C_BATBOSSX_WORD	= C_BATBOSSX_PIX/8.*2
 C_BATX2BALLX	= C_BATX_PIX-14.*256.
 
 ; keys
+C_KEY_0		= 60
 C_KEY_1		= 61
 C_KEY_2		= 62
 C_KEY_3		= 63
@@ -83,4 +84,5 @@ C_PWR_B		= 15.
 C_PWR_S		= 14.
 
 ; menu
-C_SCROLL_Y	= 225.
+C_MENUY		= 60.
+C_SCROLL_Y	= 227.

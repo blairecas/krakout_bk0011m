@@ -63,37 +63,41 @@ MainReset:
 	call	MenuBallPrepare
 	; draw 'krakout' tiles
 	mov	#50., R2
-	mov	#22.*C_SCRWID+16.+C_VADDR, R4
+	mov	#17.*C_SCRWID+16.+C_VADDR, R4
 	mov	#7., R3
 	call	100$
 	mov	#60., R2
-	mov	#38.*C_SCRWID+16.+C_VADDR, R4
+	mov	#33.*C_SCRWID+16.+C_VADDR, R4
 	mov	#7., R3
 	call	100$
 	; print menu lines
 	; 1 - joy
 	mov	#Str001, R0
-	mov	#70.*C_SCRWID+18.+C_VADDR, R5
+	mov	#C_MENUY+0.*C_SCRWID+18.+C_VADDR, R5
 	call	PrintStr
 	; joy on/off
 	mov	UseJoystick, R0
-	mov	#70.*C_SCRWID+42.+C_VADDR, R5
+	mov	#C_MENUY+0.*C_SCRWID+42.+C_VADDR, R5
 	call	PrintOnOff
 	; 2 - palette
 	mov	#Str002, R0
-	mov	#90.*C_SCRWID+18.+C_VADDR, R5
+	mov	#C_MENUY+20.*C_SCRWID+18.+C_VADDR, R5
 	call	PrintStr
 	; 3 - sound
 	mov	#Str003, R0
-	mov	#110.*C_SCRWID+18.+C_VADDR, R5
+	mov	#C_MENUY+40.*C_SCRWID+18.+C_VADDR, R5
 	call	PrintStr
 	; 4 - cheat
 	mov	#Str004, R0
-	mov	#130.*C_SCRWID+18.+C_VADDR, R5
+	mov	#C_MENUY+60.*C_SCRWID+18.+C_VADDR, R5
+	call	PrintStr
+	; 0 - quit
+	mov	#Str005, R0
+	mov	#C_MENUY+80.*C_SCRWID+18.+C_VADDR, R5
 	call	PrintStr
 	; press space
 	mov	#Str000, R0
-	mov	#165.*C_SCRWID+20.+C_VADDR, R5
+	mov	#C_MENUY+110.*C_SCRWID+20.+C_VADDR, R5
 	call	PrintStr	
 	; next mode
 	call	DuplicateScreen
@@ -126,11 +130,18 @@ MainMenu:
 	call	PrepareKey			; put something to key from joystick 
 	; keys
 	cmp	KeyCurrent, #C_KEY_SPACE
-	bne	10$
+	bne	1$
 	clr	KeyCurrent
 	call	MusicMute
 	inc	CurrentMode
 	return
+1$:	; quit
+	cmp	KeyCurrent, #C_KEY_0
+	bne	10$
+	call	MusicMute
+	tst	@#177662
+	reset
+	jmp	@#140000
 10$:	cmp	KeyCurrent, #C_KEY_1
 	bne	20$
 	clr	KeyCurrent
@@ -1083,19 +1094,19 @@ PrintOnOff:
 
 PrintMenuPalette:
 	mov	Palette, R0
-	mov	#90.*C_SCRWID+40.+C_VADDR, R5
+	mov	#C_MENUY+20.*C_SCRWID+40.+C_VADDR, R5
 	jmp	PrintDecimal2	
 
 
 PrintMenuSound:
 	mov	UseSound, R0
-	mov	#110.*C_SCRWID+36.+C_VADDR, R5
+	mov	#C_MENUY+40.*C_SCRWID+36.+C_VADDR, R5
 	br	PrintOnOff
 
 
 PrintMenuCheat:
 	mov	UseCheat, R0
-	mov	#130.*C_SCRWID+36.+C_VADDR, R5
+	mov	#C_MENUY+60.*C_SCRWID+36.+C_VADDR, R5
 	br	PrintOnOff
 
 
@@ -4140,6 +4151,7 @@ Str001:		.asciz	"1"<1>":;"<2>"JOYSTICK"
 Str002:		.asciz	"2"<1>":;"<2>"PALETTE"
 Str003:		.asciz	"3"<1>":;"<2>"SOUND"
 Str004:		.asciz	"4"<1>":;"<2>"CHEAT"
+Str005:		.asciz	"0"<1>":;"<1>"QUIT"
 Str010:		.asciz	"OFF"
 Str011:		.asciz	"ON "
 Str013:		.asciz	<1>"SCORE"
