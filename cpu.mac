@@ -11,10 +11,13 @@ Start:	mtps	#200
 	mov	SP, @#4
 	call	MusicMute
 
-	; keyboadr interrupt
+	; keyboard interrupt
 	mov	#KbdInt, @#60
 	clr	@#62
 	bic	#^B01000000, @#177660		; allow keyboard interrupt
+	
+	; keyboard interrupt 2
+	mov	#Kbd274int, @#274	
 
 	; vsync interrupt
 	mov	#VsyInt, @#100
@@ -367,6 +370,10 @@ VsyCnt:	.word	0
 
 ; keyboard int
 KbdInt:	mov	@#177662, KeyCurrent
+	rti
+
+; second keyboard int
+Kbd274Int:
 	rti
 
 ; wait for vsync proc
