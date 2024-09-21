@@ -44,6 +44,9 @@ if %ERRORLEVEL% NEQ 0 ( exit /b )
 ..\scripts\macro11 -ysl 32 -yus -l _krakout.lst _krakout.mac
 if %ERRORLEVEL% NEQ 0 ( exit /b )
 php -f ../scripts/lst2bin.php _krakout.lst ./release/krakout.bin bbk 2000
+if %ERRORLEVEL% NEQ 0 ( exit /b )
+php -f ../scripts/bin2wav.php ./release/krakout.bin
+if %ERRORLEVEL% NEQ 0 ( exit /b )
 
 
 echo.
