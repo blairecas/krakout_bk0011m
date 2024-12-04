@@ -48,5 +48,15 @@ if %ERRORLEVEL% NEQ 0 ( exit /b )
 php -f ../scripts/bin2wav.php ./release/krakout.bin
 if %ERRORLEVEL% NEQ 0 ( exit /b )
 
+del _cpu.bin
+del _cpu_lz.bin
+del _music.bin
+del _music_lz.bin
+del _cpu.mac
+del _cpu.lst
+del _music.mac
+del _music.lst
+del _krakout.mac
+del _krakout.lst
 
 echo.
